@@ -1,0 +1,22 @@
+{
+ "battleaxecombatleague": {
+  "holdout": null,
+  "metrics": {
+   "items": 1,
+   "no_traps": 1,
+   "spawn_links": 1,
+   "weapon_rush": 1
+  },
+  "satisfaction": 100
+ },
+ "prairieloop": {
+  "holdout": null,
+  "metrics": {
+   "items": 0.918,
+   "no_traps": 1,
+   "spawn_links": 0.966,
+   "weapon_rush": 1
+  },
+  "satisfaction": 97.1
+ }
+}
