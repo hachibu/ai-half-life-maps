@@ -590,19 +590,37 @@ def clear_of_buildings(x, y, m):
     for (x0, y0, x1, y1) in GARAGES:
         if x0 - m < x < x1 + m and y0 - m < y < y1 + m: return False
     return XW + 100 < x < XE - 100 and YS + 100 < y < YN - 100
-snow_n = 0
-for y in range(YS + 200, YN - 100, 380):
-    for x in range(XW + 260, XE - 100, 380):
-        jx, jy = x + (y // 380 % 2) * 190, y
-        if clear_of_buildings(jx, jy, 120):
-            point("env_sprite", jx, jy, 150, model="sprites/prairie_snow%s.spr" % ("" if snow_n % 2 else "2"), rendermode=5,
-                  renderamt=190, rendercolor="255 255 255", framerate=9 + snow_n % 4, scale=2, spawnflags=1)
-            snow_n += 1
-for y in range(YS + 300, YN - 100, 620):
-    for x in range(XW + 400, XE - 100, 620):
-        point("env_sprite", x, y, 300, model="sprites/prairie_snow.spr", rendermode=5, renderamt=170,
-              rendercolor="255 255 255", framerate=10 + snow_n % 3, scale=2, spawnflags=1)
-        snow_n += 1
+# Continuous snowfall: a crossing grid of see-through (additive) animated sheets over the whole outdoor area,
+# so snow is everywhere instead of in sprite patches. Over buildings a sheet starts at the roof, so it never
+# snows indoors. Sheets are func_illusionary: no collision, no effect on the BSP.
+SNOW_GAP, SNOW_TOP, SNOW_BOT = 256, 800, -16
+SNOWTEX = {"name": "+0SNOWFALL", "su": 4, "sv": 4}
+ROOFS = [footprint(h) for h in HOUSES] + GARAGES
+def snow_spans(fixed, lo, hi, along_x):
+    """Split the line (x = fixed if not along_x, else y = fixed) from lo..hi into (a, b, z_bottom) runs."""
+    cuts = {lo, hi}
+    for (x0, y0, x1, y1) in ROOFS:
+        c0, c1, f0, f1 = (x0, x1, y0, y1) if along_x else (y0, y1, x0, x1)
+        if f0 - 8 < fixed < f1 + 8:
+            cuts |= {min(max(c0 - 8, lo), hi), min(max(c1 + 8, lo), hi)}
+    cuts = sorted(cuts); out = []
+    for a, b in zip(cuts, cuts[1:]):
+        if b - a < 8: continue
+        m = (a + b) / 2; px, py = (m, fixed) if along_x else (fixed, m)
+        over = any(x0 - 8 < px < x1 + 8 and y0 - 8 < py < y1 + 8 for (x0, y0, x1, y1) in ROOFS)
+        z0 = ROOF + 2 if over else SNOW_BOT
+        if out and out[-1][2] == z0: out[-1] = (out[-1][0], b, z0)
+        else: out.append((a, b, z0))
+    return out
+SNOW = []
+for x in range(XW + SNOW_GAP // 2, XE, SNOW_GAP):
+    for a, b, z0 in snow_spans(x, YS, YN, False):
+        SNOW.append(box(x - 1, a, z0, x + 1, b, SNOW_TOP, SNOWTEX))
+for y in range(YS + SNOW_GAP // 2, YN, SNOW_GAP):
+    for a, b, z0 in snow_spans(y, XW, XE, True):
+        SNOW.append(box(a, y - 1, z0, b, y + 1, SNOW_TOP, SNOWTEX))
+bent("func_illusionary", SNOW, rendermode=5, renderamt=200)
+snow_n = len(SNOW)
 for i, (x, y, fr) in enumerate([(-2850, 0, 7), (-2650, -160, 9), (-2950, 200, 11), (-2500, 120, 8)]):
     point("env_sprite", x, y, 380, model="sprites/prairie_burst.spr", rendermode=5, renderamt=210, rendercolor="255 255 255",
           framerate=fr, scale=6, spawnflags=1)
@@ -655,11 +673,9 @@ VALVE = os.path.join(OUT, "valve")
 for sub in ("gfx/env", "sprites", "sound/justincon"):
     os.makedirs(os.path.join(VALVE, sub), exist_ok=True)
 A.write_skybox(os.path.join(VALVE, "gfx", "env", NAME))
-A.write_spr(os.path.join(VALVE, "sprites", "prairie_snow.spr"), A.snow_frames(), A.SNOW_PAL)
-A.write_spr(os.path.join(VALVE, "sprites", "prairie_snow2.spr"), A.snow_frames(seed=7), A.SNOW_PAL)
 A.write_spr(os.path.join(VALVE, "sprites", "prairie_burst.spr"), A.burst_frames(), A.SNOW_PAL)
 A.write_spr(os.path.join(VALVE, "sprites", "prairie_steam.spr"), A.steam_frames(), A.SNOW_PAL)
 A.make_sounds(os.path.join(VALVE, "sound", "justincon"))
 A.make_alarm(os.path.join(VALVE, "sound", "justincon", "alarm.wav"))
-print("world brushes %d (earth %d)  decor %d  brush ents %d  items %d  spawns %d  snow sprites %d  point ents %d" % (
+print("world brushes %d (earth %d)  decor %d  brush ents %d  items %d  spawns %d  snow sheets %d  point ents %d" % (
     len(W), EARTH_N, len(DECOR), len(BENTS), len(ITEMS), len(SPAWNS), snow_n, len(ENTS)))

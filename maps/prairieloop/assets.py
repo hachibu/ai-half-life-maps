@@ -507,6 +507,29 @@ for k in range(10):
     T["+%dMARQUEE" % k] = marquee_frame(k)
 EMISSIVE.update({"+0MARQUEE": 240, "TELEPAD": 230, "CHARGER_H": 120, "CHARGER_A": 120, "ARMORY": 150, "BREAKER": 60})
 
+def snowfall_frame(k, N=10, S=128, n=110, seed=21):
+    """One frame of the continuous snowfall sheet (additive: black = clear).
+    Each flake falls 1 px (4 units at scale 4) per frame and fades in/out over its own 10-frame life,
+    phases staggered, so the 10-frame loop (1 s in game) has no visible restart."""
+    def f():
+        r = np.random.default_rng(seed)
+        x0 = r.random(n) * S; y0 = r.random(n) * S; ph = r.integers(0, N, n)
+        drift = r.choice([0.0, 0.3, 0.5], n); peak = r.uniform(120, 210, n)
+        a = np.zeros((S, S))
+        for i in range(n):
+            age = (k - ph[i]) % N
+            b = peak[i] * math.sin(math.pi * (age + 0.5) / N)
+            x = int(x0[i] + drift[i] * age) % S; y = int(y0[i] + age) % S
+            a[y, x] = max(a[y, x], b)
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                yy, xx = (y + dy) % S, (x + dx) % S
+                a[yy, xx] = max(a[yy, xx], b * 0.15)
+        a = np.stack([a * 0.92, a * 0.95, a], -1)
+        return img(a)
+    return f
+for k in range(10):
+    T["+%dSNOWFALL" % k] = snowfall_frame(k)
+
 def steam_frames(N=32, S=64, seed=5):
     r = np.random.default_rng(seed); frames = []
     puffs = [(r.random() * S, r.random(), r.uniform(5, 10)) for _ in range(14)]
