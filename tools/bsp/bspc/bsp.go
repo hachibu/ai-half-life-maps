@@ -302,11 +302,12 @@ func chooseSplitter(polys []Face) (Vec, float64) {
 				lo = math.Min(lo, x)
 			}
 			h, l := hi > EPS, lo < -EPS
-			if h && l {
+			switch {
+			case h && l:
 				sp++
-			} else if h {
+			case h:
 				fr++
-			} else if l {
+			case l:
 				bk++
 			}
 		}
