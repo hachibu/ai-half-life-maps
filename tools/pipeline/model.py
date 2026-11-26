@@ -8,7 +8,6 @@ PLACEHOLDER = {"", "_no response_", "none", "n/a", "-", "tbd", "todo"}
 ALLOWED_ROOTS = ("maps/", "tools/", "docs/", ".github/", "Makefile", "AGENTS.md", "CLAUDE.md", "README.md", "requirements.txt",
                  ".gitignore")
 PROTECTED = (".github/", "tools/pipeline/", "AGENTS.md", "Makefile", "CLAUDE.md")   # rules of the system itself
-PRIORITY = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
 
 
 def strip_comments(text):

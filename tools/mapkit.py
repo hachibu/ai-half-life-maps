@@ -127,7 +127,7 @@ def build_map(build_file, worldspawn=None):
     world = '{\n"classname" "worldspawn"\n' + "".join('"%s" "%s"\n' % kv for kv in ws.items()) + \
             "".join(b for c in ctxs for b in c.world) + "}\n"
     with open(out / (name + ".map"), "w", newline="\r\n") as f:
-        f.write(world + "".join(e for c in ctxs for e in c.entities))
+        f.write(world + "".join(e for c in ctxs for e in c.entities) + texlights(out / (name + ".wad"), L.EMISSIVE))
     print("%s: %d zones (%s), %d brushes, %d entities, %d textures" % (
         name, len(zones), ", ".join(z.ZONE for z in zones), sum(len(c.world) for c in ctxs),
         sum(len(c.entities) for c in ctxs), len(textures)))

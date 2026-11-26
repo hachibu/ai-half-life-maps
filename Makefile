@@ -19,14 +19,11 @@ MAPS    := $(filter-out _template,$(notdir $(wildcard maps/*)))
 BD       = build/$(MAP)
 TIMEOUT ?= 1800
 
-.PHONY: bspc sdhlt lint golden golden-out golden-update build test views video all list check-map readme ledger pipeline-test quality holdout-encrypt
+.PHONY: bspc sdhlt lint golden golden-out golden-update build test views video all check-map readme ledger pipeline-test quality holdout-encrypt
 
 check-map:
 	@test -n "$(MAP)" || (echo "usage: make <target> MAP=<one of: $(MAPS)>"; exit 2)
 	@test -d maps/$(MAP) || (echo "no such map: maps/$(MAP)"; exit 2)
-
-list:
-	@echo $(MAPS)
 
 # SDHLT (https://github.com/seedee/SDHLT): the GoldSrc compiler suite, built from the commit in tools/bsp/sdhlt.rev.
 # It is GPLv2 + Valve's SDK EULA, so it is fetched and built here, never committed. Needs git, cmake and a C++ compiler.

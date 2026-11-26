@@ -24,15 +24,6 @@ def img(arr): return Image.fromarray(np.asarray(arr).clip(0, 255).astype(np.uint
 
 T = {}
 
-def nightsky():
-    w = h = 256
-    a = colorize(noise(w, h, 6) * 0.5, (4, 6, 18), (18, 22, 48))
-    for _ in range(140):
-        x, y = rng.integers(0, w), rng.integers(0, h)
-        b = rng.integers(120, 255)
-        a[y, x] = (b, b, min(255, b + 20))
-    return img(a)
-
 T["GRASS"] = lambda: img(colorize(noise(128, 128, 0.8) * 0.6 + rng.random((128, 128)) * 0.4, (25, 60, 20), (80, 130, 50)))
 
 def asphalt():
@@ -379,7 +370,7 @@ def serverrack():
     return im
 T["SERVERRACK"] = serverrack
 
-# emissive levels (used by the compiler as a minimum lightmap value)
+# glowing textures (0..255): zone-built maps light them with tools.mapkit.texlights (SDHLT's info_texlights)
 EMISSIVE = {"BANNER_B": 210, "BANNER_R": 210, "BRACKET": 230, "SCREEN_R1": 220, "SCREEN_R2": 220, "CHAR": 70, "NWINDOW": 230, "LAMP": 255, "SCREEN1": 230, "SCREEN2": 230,
             "SCREEN3": 230, "SCREENTV": 230, "BANNER": 210, "SERVERRACK": 170, "PCCASE": 150}
 

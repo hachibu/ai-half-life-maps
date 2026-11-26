@@ -81,9 +81,9 @@ def main():
           "unknown map fails spec")
 
     other = [dict(number=2, agent="claude", paths=["maps/prairieloop/zones/park.py"])]
-    check(G.gate_claim(t, other, {"claude": 1}).state == G.FAIL, "overlapping earlier claim fails")
-    check(G.gate_claim(t, [dict(number=2, agent="claude", paths=["maps/cagematch/"])], {"claude": 1}).state == G.OK, "disjoint claim passes")
-    check(G.gate_claim(t, [], {"claude": 5}).state == G.OK, "human-assigned claims are not WIP-limited")
+    check(G.gate_claim(t, other).state == G.FAIL, "overlapping earlier claim fails")
+    check(G.gate_claim(t, [dict(number=2, agent="claude", paths=["maps/cagematch/"])]).state == G.OK, "disjoint claim passes")
+    check(G.gate_claim(t, []).state == G.OK, "a claim with no other claims passes")
 
     tasks = {5: t}
     ok = G.gate_scope(pr(), "claude", files("maps/prairieloop/build.py", "docs/lessons/2026-x.md"), tasks, set())
@@ -114,7 +114,7 @@ def main():
 
     blk = lambda who, verdict, sha="abcdef1": dict(body="looks good\n<!-- agent-review -->\nreviewer: %s\nverdict: %s\nsha: %s" % (who, verdict, sha),
                                                     user=dict(login="hachibu"), created_at="2026-01-02")
-    rev = lambda *c, reviews=(), rc=(): G.gate_review("claude", "abcdef1234567", list(c), list(reviews), list(rc), "2026-01-01", set())
+    rev = lambda *c, reviews=(), rc=(): G.gate_review("claude", "abcdef1234567", list(c), list(reviews), list(rc), set())
     check(rev().state == G.OK, "no review needed: an agent can merge its own PR")
     check(rev(blk("hachibu", "approve")).state == G.OK, "an approval passes")
     check(rev(blk("claude", "approve")).state == G.OK, "self-approval is harmless")
@@ -126,11 +126,11 @@ def main():
     check(rev(reviews=[gh_rev("CHANGES_REQUESTED")]).state == G.FAIL, "GitHub 'Request changes' on the head commit fails")
     check(rev(reviews=[gh_rev("CHANGES_REQUESTED", "1111111000000")]).state == G.OK, "GitHub 'Request changes' on an older commit is ignored")
     check(rev(reviews=[gh_rev("APPROVED")]).state == G.OK, "GitHub approval passes")
-    check(G.gate_review("claude", "abcdef1234567", [blk("hachibu", "approve")], [], [], "2026-01-01", {"hold"}).state == G.PENDING, "hold label pauses")
-    check(G.gate_review("claude", "abcdef1234567", [], [], [], "2026-01-01", {"hold"}).state == G.PENDING, "hold pauses even with no review")
-    check(G.gate_review("claude", "abcdef1234567", [blk("hachibu", "changes")], [], [], "2026-01-01", {"human-approved"}).state == G.OK,
+    check(G.gate_review("claude", "abcdef1234567", [blk("hachibu", "approve")], [], [], {"hold"}).state == G.PENDING, "hold label pauses")
+    check(G.gate_review("claude", "abcdef1234567", [], [], [], {"hold"}).state == G.PENDING, "hold pauses even with no review")
+    check(G.gate_review("claude", "abcdef1234567", [blk("hachibu", "changes")], [], [], {"human-approved"}).state == G.OK,
           "human-approved overrides requested changes")
-    check(G.gate_review("claude", "abcdef1234567", [], [], [], "2026-01-01", {"human-approved"}).state == G.OK, "human-approved counts as review")
+    check(G.gate_review("claude", "abcdef1234567", [], [], [], {"human-approved"}).state == G.OK, "human-approved counts as review")
 
     lesson = "---\ntitle: X\ntags: [prairieloop, snow]\ngate: checks\nsource: PR #9\n---\n## What happened\na\n## Why\nb\n## Rule\nc\n"
     fl = files("maps/prairieloop/build.py") + [dict(filename="docs/lessons/2026-11-26-x.md", status="added", additions=9, deletions=0, changes=9)]
