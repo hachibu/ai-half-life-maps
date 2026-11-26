@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 *.part.mp4
 .DS_Store
+holdout/scenarios.json
+.codex-out/
+next.json
+ledger-wt/

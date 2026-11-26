@@ -1,0 +1,83 @@
+name: pipeline
+
+# The autonomous pipeline (docs/pipeline.md). Evaluates the deterministic gates for pull requests and task
+# issues, sets the required `pipeline/gate` status, merges pull requests whose gates are all green, and
+# records every decision in the ledger branch.
+#
+# Security: this workflow always runs the code on main (pull_request_target / issue events / schedule) and
+# never checks out or executes code from a pull request, so a PR cannot weaken the gates that judge it.
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened, ready_for_review, labeled, unlabeled]
+  pull_request_review:
+    types: [submitted]
+  issue_comment:
+    types: [created, edited]
+  issues:
+    types: [opened, edited, labeled, unlabeled, closed, reopened]
+  workflow_run:
+    workflows: [map-check]
+    types: [completed]
+  schedule:
+    - cron: "17 * * * *"          # janitor: re-evaluate everything, expire stale claims, render the ledger
+  workflow_dispatch:
+
+permissions:
+  contents: write                 # merge, ledger branch, delete merged branches
+  pull-requests: write
+  issues: write
+  statuses: write
+  actions: write                  # dispatch release after a merge
+
+concurrency:
+  group: pipeline-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.head_sha || github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main                # the rules come from main, never from the PR
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Open ledger
+        run: bash tools/ci/ledger_open.sh
+      - name: Work out what to evaluate
+        id: what
+        env:
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          ISSUE: ${{ github.event.issue.number }}
+          IS_PR_COMMENT: ${{ github.event.issue.pull_request != null }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          prs=""; issues=""
+          case "$EVENT" in
+            pull_request_target|pull_request_review) prs="$PR" ;;
+            issue_comment) if [ "$IS_PR_COMMENT" = "true" ]; then prs="$ISSUE"; fi ;;
+            issues) issues="$ISSUE" ;;
+            workflow_run) prs=$(gh api "repos/$GITHUB_REPOSITORY/commits/$RUN_SHA/pulls" --jq '.[] | select(.state=="open") | .number' | tr '\n' ' ') ;;
+            schedule|workflow_dispatch)
+              prs=$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --jq '.[].number' | tr '\n' ' ')
+              issues=$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&labels=task&per_page=100" --jq '.[] | select(.pull_request|not) | .number' | tr '\n' ' ') ;;
+          esac
+          echo "prs=$prs" >> "$GITHUB_OUTPUT"; echo "issues=$issues" >> "$GITHUB_OUTPUT"
+          echo "PRs: $prs   issues: $issues"
+      - name: Task gates (spec, claim)
+        if: steps.what.outputs.issues != ''
+        run: for n in ${{ steps.what.outputs.issues }}; do python -m tools.pipeline.gates issue "$n" --apply || true; done
+      - name: PR gates (scope, description, checks, ratchet, review, learning) + merge
+        if: steps.what.outputs.prs != ''
+        run: for n in ${{ steps.what.outputs.prs }}; do python -m tools.pipeline.gates pr "$n" --apply || true; done
+      - name: Janitor (stale claims, ledger render)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: python -m tools.pipeline.janitor
+      - name: Save ledger
+        if: always()
+        run: bash tools/ci/ledger_save.sh "pipeline ${{ github.event_name }} ${{ steps.what.outputs.prs }}${{ steps.what.outputs.issues }}"

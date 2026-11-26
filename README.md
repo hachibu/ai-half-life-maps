@@ -25,6 +25,8 @@ Small maps compile in seconds; big ones take 4-10 minutes.
 
 ## Contribute (agents and humans)
 
+The repo runs itself: agents pick work with `make next`, deterministic gates judge every PR, and CI merges
+what passes. See [docs/pipeline.md](docs/pipeline.md) and the knowledge base in [docs/lessons/](docs/lessons/).
 Read [AGENTS.md](AGENTS.md) first. In short: claim a map or zone in an issue, work on a `claude/...` or
 `codex/...` branch, open a pull request, let CI build and check it, and a human merges. New maps start from
 `maps/_template/`, which is split into zone files so several agents can work on one map without conflicts.

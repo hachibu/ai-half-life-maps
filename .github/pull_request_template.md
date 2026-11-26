@@ -3,6 +3,8 @@ Write this for a person who hasn't seen your code or the chat that produced it.
 Plain language, short sentences, no internal jargon. Replace every comment; delete sections only where noted.
 -->
 
+Closes #
+
 ## Summary
 
 <!-- 1-3 sentences: what this pull request does and why.
@@ -58,6 +60,3 @@ paste here
 <!-- What you couldn't check, e.g. "not played in the real game", "lift timing only seen in stills".
 Write "Nothing" only if that's true. -->
 
-## Claim
-
-Closes #

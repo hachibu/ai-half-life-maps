@@ -4,6 +4,9 @@
 #   make views MAP=prairieloop     preview images  -> build/prairieloop/previews/
 #   make video MAP=prairieloop     walkthrough mp4 + Discord-size copy (maps with video/walkthrough.py)
 #   make all                       build + test every map
+#   make next AGENT=claude         the one thing this agent should do now (see docs/pipeline.md)
+#   make ledger                    fetch the ledger branch -> build/ledger/ledger.sqlite + LEDGER.md
+#   make quality MAP=x             satisfaction score (+ holdout pass rate when HOLDOUT_KEY is set)
 # Long steps run under `timeout` and print progress; a silent process is a bug.
 
 PY      ?= python3
@@ -12,7 +15,7 @@ MAPS    := $(filter-out _template,$(notdir $(wildcard maps/*)))
 BD       = build/$(MAP)
 TIMEOUT ?= 1800
 
-.PHONY: build test views video all list check-map
+.PHONY: build test views video all list check-map next ledger pipeline-test quality holdout-encrypt
 
 check-map:
 	@test -n "$(MAP)" || (echo "usage: make <target> MAP=<one of: $(MAPS)>"; exit 2)
@@ -49,3 +52,22 @@ video: check-map
 
 all:
 	@set -e; for m in $(MAPS); do $(MAKE) build MAP=$$m && $(MAKE) test MAP=$$m; done
+
+next:
+	@test -n "$(AGENT)" || (echo "usage: make next AGENT=claude|codex"; exit 2)
+	$(PY) -m tools.pipeline.next $(AGENT)
+
+ledger:
+	$(PY) -m tools.pipeline.ledger fetch && $(PY) -m tools.pipeline.ledger build && $(PY) -m tools.pipeline.ledger render
+
+pipeline-test:
+	$(PY) -m tools.pipeline.test_gates
+
+quality: check-map
+	timeout 900 $(PY) -m tools.ci.quality measure $(MAP)
+
+# Humans only: encrypt holdout/scenarios.json (never commit it) with the key stored as the HOLDOUT_KEY secret.
+holdout-encrypt:
+	@test -n "$$HOLDOUT_KEY" || (echo "set HOLDOUT_KEY"; exit 2)
+	openssl enc -aes-256-cbc -pbkdf2 -salt -in holdout/scenarios.json -out holdout/scenarios.enc -pass env:HOLDOUT_KEY
+	@echo "wrote holdout/scenarios.enc; delete holdout/scenarios.json"
