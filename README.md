@@ -25,17 +25,20 @@ README (`maps/<name>/README.md`) describes it with screenshots.
 
 ## Build
 
-You need Go 1.24+ (the compiler and checks) and Python 3.11+ (map descriptions, packaging, previews).
+You need Go 1.24+ (checks, previews), Python 3.11+ (map descriptions, packaging), and git, cmake and a C++
+compiler: `make build` fetches and builds [SDHLT](https://github.com/seedee/SDHLT), the GoldSrc map compiler, once.
 
 ```
 pip install -r requirements.txt          # numpy, scipy, pillow (ffmpeg for videos)
 make bspc                                # build the Go tools into build/bin/ (make build does this for you)
-make build MAP=prairieloop               # describe, compile (Go), package -> build/prairieloop/prairieloop.zip
+make sdhlt                               # fetch + build the pinned SDHLT compiler (make build does this for you)
+make build MAP=prairieloop               # describe, compile (SDHLT, quick lighting), package -> build/prairieloop/prairieloop.zip
+make build MAP=prairieloop LIGHT=full    # full lighting, as releases ship (minutes, not seconds)
 make test  MAP=prairieloop               # limits, placements, wiring, walk routes (Go)
 make views MAP=prairieloop               # preview images
 make video MAP=prairieloop               # walkthrough video (maps that have one)
 make lint                                # golangci-lint on the Go code
-make golden                              # compiler + scorer output must match the committed golden values
+make golden                              # SDHLT + scorer output must match the committed golden values
 make all                                 # every map
 ```
 
@@ -53,7 +56,7 @@ one map without conflicts.
 ## Layout
 
 ```
-tools/bsp/bspc/    the BSP compiler (Go)
+tools/bsp/sdhlt.rev  the SDHLT commit maps are compiled with
 tools/checks/      map checks, route walker and satisfaction scorer (Go)
 tools/             also: map kit, renderer, asset generators, packager (Python)
 maps/              one folder per map (+ _template)

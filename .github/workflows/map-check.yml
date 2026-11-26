@@ -43,6 +43,11 @@ jobs:
           install-only: true
       - name: Go lint (golangci-lint; config in tools/.golangci.yml)
         run: make lint
+      - name: Cache SDHLT (the map compiler, built from tools/bsp/sdhlt.rev)
+        uses: actions/cache@v4
+        with:
+          path: build/sdhlt
+          key: sdhlt-${{ runner.os }}-${{ hashFiles('tools/bsp/sdhlt.rev') }}
       - name: Go compiler + scorer output matches the committed golden values
         run: pip install -q -r requirements.txt && make golden
       - id: pick
@@ -85,6 +90,11 @@ jobs:
         with:
           go-version: "1.24"
           cache-dependency-path: go.mod
+      - name: Cache SDHLT (the map compiler, built from tools/bsp/sdhlt.rev)
+        uses: actions/cache@v4
+        with:
+          path: build/sdhlt
+          key: sdhlt-${{ runner.os }}-${{ hashFiles('tools/bsp/sdhlt.rev') }}
       - name: Build ${{ matrix.map }}
         run: make build MAP=${{ matrix.map }}
       - name: Test ${{ matrix.map }}
