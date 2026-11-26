@@ -34,8 +34,8 @@ jobs:
           cache-dependency-path: go.mod
       - name: Python requirements (map scripts and tools/mapkit, which the README check and the map picker run)
         run: pip install -q -r requirements.txt
-      - name: READMEs up to date (map view names come from each map's views.py)
-        run: go run ./tools/cmd/ci readme --check
+      - name: READMEs and the AGENTS.md lessons index up to date; lessons well-formed
+        run: go run ./tools/cmd/ci readme --check && go run ./tools/cmd/ci lessons --check
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:

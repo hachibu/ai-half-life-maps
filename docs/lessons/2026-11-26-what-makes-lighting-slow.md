@@ -1,7 +1,7 @@
 ---
-title: Lighting time is surfaces times light sources; cut both in the map, not the compiler
-tags: [lighting, compiler, battleaxecombatleague, prairieloop, general]
-gate: none
+title: Cut lighting time in the map: NULL hidden faces, real lights only, bigger patches on big plain surfaces
+area: lighting
+tags: [battleaxecombatleague, prairieloop]
 source: faster PR builds (BattleAxe full lighting 174 s -> 104 s locally)
 ---
 

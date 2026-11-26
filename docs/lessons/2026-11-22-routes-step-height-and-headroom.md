@@ -1,7 +1,7 @@
 ---
-title: Routes fail on steps over 18 units or low ceilings
-tags: [routes, walk, stairs, general]
-gate: checks
+title: Keep risers at 16 or less with 72+ units of headroom, and add a route for every new walkable area
+area: geometry
+tags: [prairieloop]
 source: prairieloop history
 ---
 

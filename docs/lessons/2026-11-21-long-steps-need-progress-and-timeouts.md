@@ -1,7 +1,6 @@
 ---
-title: Every long step prints progress and runs under a timeout
-tags: [compiler, lighting, ci, general]
-gate: checks
+title: Run long steps under a timeout with progress output; measure before guessing
+area: workflow
 source: battleaxecombatleague history
 ---
 
@@ -15,4 +14,4 @@ Lighting cost grew with faces x lights x samples, and nothing reported progress,
 
 ## Rule
 
-Cull per face before per sample, print progress, and wrap long commands in `timeout`. A silent process is a bug. Diagnose with timings before guessing.
+Wrap long commands in `timeout`, make them print progress, and diagnose with timings (per step, per phase) before guessing. A silent process is a bug.

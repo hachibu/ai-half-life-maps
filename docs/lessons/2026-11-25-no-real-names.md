@@ -1,7 +1,6 @@
 ---
-title: Only invented names in maps, docs and commits
-tags: [privacy, content, general]
-gate: review
+title: Use only invented names; 'Justin Con' is the one approved real-world name
+area: content
 source: repo going public
 ---
 

@@ -1,7 +1,6 @@
 ---
-title: A video script change isn't a map change
-tags: [ci, screenshots, maps, general]
-gate: checks
+title: Add non-map folders under maps/<map>/ to map-check's map-change filter
+area: ci
 source: Go tooling 2/4 (#33, PR #39)
 ---
 

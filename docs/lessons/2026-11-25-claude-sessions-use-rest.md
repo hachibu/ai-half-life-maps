@@ -1,7 +1,6 @@
 ---
-title: Claude sessions: GitHub REST only (no GraphQL)
-tags: [claude, github, tooling]
-gate: checks
+title: From Claude sessions, use GitHub's REST API (no GraphQL); ask the human for deletions and settings
+area: github
 source: pipeline setup
 ---
 

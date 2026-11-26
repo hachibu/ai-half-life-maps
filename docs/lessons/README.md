@@ -1,17 +1,28 @@
 # Lessons
 
-One lesson per file, so agents never edit the same file at once. Before starting a task, every agent reads
-the lessons tagged `general` and those tagged with its map or area (AGENTS.md). Add a lesson in the same PR
-whenever a check went red or something broke, so the knowledge base grows from real mistakes.
+One rule per file, learned from something that went wrong or took too long. Every rule's title appears in the
+Lessons section of [AGENTS.md](../../AGENTS.md), which every agent reads first; the file holds the details.
+`make readme` regenerates that list, and CI fails if a lesson is malformed or the list is out of date.
 
-File name: `YYYY-MM-DD-short-slug.md`. Format:
+## When to write one
+
+- a check went red on your PR,
+- the human corrected you or your approach,
+- something took much longer than it should have, or a measurement surprised you.
+
+Update an existing lesson instead of adding a near-duplicate, and delete a lesson when what it describes no
+longer exists (git history keeps it).
+
+## Format
+
+File name: `YYYY-MM-DD-short-slug.md`.
 
 ```
 ---
-title: One line, phrased as the rule's headline
-tags: [map names, areas like lighting/routes/ci, or general]
-gate: which check caught it (checks, lint, golden, routes, screenshots, quality, ... or none)
-source: PR #n, incident #n, or history
+title: The rule itself, one line, no trailing period
+area: workflow | geometry | lighting | textures | entities | content | ci | github | go | python
+tags: [map names, only if the lesson is about specific maps]
+source: the PR, map or change it came from
 ---
 
 ## What happened
@@ -19,5 +30,5 @@ source: PR #n, incident #n, or history
 ## Rule
 ```
 
-Tags decide who sees a lesson: agents pick lessons by matching tags against their task's map and area. Tag `general` for anything every agent should know. Update an old lesson instead of adding a
-duplicate when you learn more about the same thing.
+The title is what every agent reads, so write it as an instruction someone can follow without opening the
+file ("Keep overhead decoration 72+ units above every walkable floor", not "Headroom problem").

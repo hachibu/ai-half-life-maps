@@ -1,7 +1,7 @@
 ---
-title: Sprite weather looks patchy; use sheets for continuous effects
-tags: [snow, weather, sprites, prairieloop]
-gate: review
+title: Use additive func_illusionary sheets for weather everywhere; sprites only for local effects
+area: entities
+tags: [prairieloop]
 source: prairieloop continuous snow
 ---
 

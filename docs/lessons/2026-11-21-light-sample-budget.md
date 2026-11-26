@@ -1,7 +1,7 @@
 ---
-title: Spend the light-sample budget where players look
-tags: [lighting, textures, battleaxecombatleague, prairieloop, general]
-gate: checks
+title: Keep light samples under ~700k: coarse texture scale on big, distant or plain surfaces
+area: lighting
+tags: [battleaxecombatleague]
 source: battleaxecombatleague restyle
 ---
 
@@ -15,4 +15,4 @@ Light samples scale with surface area / (16 x texture scale)^2. Long thin decora
 
 ## Rule
 
-Give large, distant, hidden or flat-colour surfaces a coarse scale (4+) in the map's SCALE table. Before adding big geometry, check the per-texture sample count (see the snippet in docs/pipeline.md) and stay under ~700k.
+Give large, distant, hidden or flat-colour surfaces a coarse scale (4+) in the map's SCALE table. Before adding big geometry, run `build/bin/mapcheck lightbudget build/<map>/<map>.bsp` and stay under ~700k of the 800k limit.

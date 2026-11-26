@@ -1,7 +1,7 @@
 ---
-title: Re-check item spots when you move geometry
-tags: [placements, items, battleaxecombatleague, general]
-gate: checks
+title: Place items relative to the geometry they sit on, and re-run `make test` after moving geometry
+area: geometry
+tags: [battleaxecombatleague]
 source: battleaxecombatleague restyle
 ---
 

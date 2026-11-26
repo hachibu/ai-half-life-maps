@@ -1,7 +1,6 @@
 ---
-title: Run `make views` before pushing renderer or reader changes
-tags: [render, tools, ci, general]
-gate: checks
+title: After changing tools/, run `make build test views` on a map and look at the images before pushing
+area: ci
 source: repo setup
 ---
 
@@ -15,4 +14,4 @@ Nothing ran the renderer between the change and the push.
 
 ## Rule
 
-Any change under tools/ must be followed by `make build test views` on at least one map before pushing. CI builds every map for tools changes; look at the screenshots.
+After any change under tools/, run `make build test views` on at least one map (`LIGHT=quick VIS=fast` is fine) and look at the screenshots before pushing. CI rebuilds every map for tools changes, but finding it there costs a round trip.

@@ -1,7 +1,6 @@
 ---
-title: The sky texture must be named lowercase `sky`
-tags: [bsp, compiler, sky, general]
-gate: checks
+title: Name the sky texture lowercase `sky`, or the game crashes
+area: textures
 source: justincon history
 ---
 
@@ -15,4 +14,4 @@ The engine only treats a face as sky (no lightmap, no subdivision) when its text
 
 ## Rule
 
-Name the sky texture `sky` (lowercase). The structure check (`tools/bsp/bspfile`) fails a build whose sky is not lowercase; never weaken that check.
+Name the sky texture `sky` (lowercase), with `skyname` matching the TGA files. `make test` (structure) fails a map whose sky isn't lowercase; never weaken that check.

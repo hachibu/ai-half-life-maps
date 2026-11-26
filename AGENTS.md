@@ -12,8 +12,8 @@ or gates to satisfy, only the checks in CI.
 
 1. **Look for existing work first.** Search open and recently merged PRs: another session may already be on it.
    Ask the human only when the task is ambiguous in a way the code can't settle.
-2. **Read the lessons for it.** Every lesson tagged `general`, plus those tagged with your map or area:
-   `grep -l -E '^tags:.*\b(general|<map>|<area>)\b' docs/lessons/*.md` (areas: compiler, lighting, routes, ci, ...).
+2. **Read the lessons.** The "Lessons" section below lists every rule we learned the hard way, one line each, by
+   area. Read it all (it's short), and open the details of any lesson that touches your task.
 3. **Branch `claude/<topic>`, one change per PR.** Never push to `main`. Rebase on the latest `main` first.
 4. **Adding, renaming or removing a map or a view? Run `make readme`** (CI fails if you forget). It updates the
    main README gallery and the map's screenshot grid; set `hero` in map.toml to choose the gallery shot.
@@ -25,8 +25,10 @@ or gates to satisfy, only the checks in CI.
 6. **CI merges agent PRs.** `map-check` builds and checks everything; when it passes on a `claude/...` PR,
    `automerge.yml` squash-merges it and starts the release. A human stops that with the `hold` label (or by
    making the PR a draft) and merges their own PRs themselves. If a check fails, fix it and push.
-7. **Learn.** If a check went red on your PR or something broke, add a lesson in the same PR
-   (`docs/lessons/README.md`). Update an existing lesson rather than duplicating it.
+7. **Learn.** Add a lesson in the same PR (format: `docs/lessons/README.md`) when a check went red, when the
+   human corrected you, or when something took much longer than it should have. Update or replace an existing
+   lesson rather than adding a near-duplicate, and delete lessons that no longer apply. Run `make readme` so the
+   index below picks it up, and mention lessons you applied or added in the PR description.
 
 Never delete or weaken a check to get green: fix the map. A check that's wrong gets fixed in its own PR, with
 the reason.
@@ -69,7 +71,7 @@ tools/cmd/ci/               CI helpers: package (valve/ layout, .res, zip), prev
 tools/bspfile/              Go: reads a compiled .bsp (limits, consistency, hulls); used by the checks and renderer
 tools/walker/               Go: the route walker (18-unit steps, free drops)
 tools/renderer/             Go: the preview + video renderer
-docs/lessons/               the knowledge base: one lesson per file; read the ones tagged for your task
+docs/lessons/               the knowledge base: one rule per file, indexed in the Lessons section below
 maps/<name>/build.py        generates build/<name>/<name>.map + .wad + valve/ assets (sky, sprites, sounds)
 maps/<name>/zones/*.py      zones (maps built with mapkit); files starting with _ are shared helpers
 maps/<name>/assets.py       that map's own textures/sprites/sounds (when it has them)
@@ -96,28 +98,73 @@ Build times on GitHub's runners: about a minute for prairieloop, three to four m
 (mostly full lighting); `LIGHT=quick VIS=fast` drafts take seconds. Full VIS taking minutes means a map lost
 its func_detail split.
 
-## Working rules we learned the hard way
+## Lessons: rules we learned the hard way
 
-Each of these cost real time once; the lesson files have the details.
+Each line below is a rule that cost real time once; the link has what happened and why. Read the whole list
+before you start: it's short. Open a lesson's details when its rule touches your task. The list is generated
+from `docs/lessons/` (`make readme`); CI fails if it's out of date.
 
-- **Before starting, look for existing work.** Search open and recently merged PRs for the same task.
-  Another session may already have done it (a README task was built twice in parallel once).
-- **Rebase on the real latest `main` before opening a PR.** In a git worktree, `git fetch origin main` may only
-  update `FETCH_HEAD`: rebase onto `FETCH_HEAD`, and force-push with an explicit lease
-  (`--force-with-lease=<branch>:<sha you expect>`).
-- **PRs and releases compile what players get: full VIS and full lighting.** `make build` runs both;
-  `LIGHT=quick VIS=fast` is a draft mode for iterating locally. Full VIS stays fast only because the maps put
-  small brushes in `func_detail` (`split_detail` in tools/mapkit: anything without two sides >= 256 units).
-  Build big walls, floors and roofs as single brushes so they stay structural; a structural brush made of many
-  small pieces slows VIS, and a detail brush can't seal the map (hlbsp reports a leak).
-- **Glowing textures go in the map's EMISSIVE table.** `texlights()` turns it into SDHLT's `info_texlights`
-  entity, so lamps, screens and signs light the room in their own colour.
-- **Prefer comparing to existing artifacts over re-running slow reference code.** A BSP built earlier from the
-  same inputs is as good a reference as a fresh slow rebuild.
-- **Merges trigger releases in merge order.** Two PRs merging close together release in the order they
-  landed, not the order they were opened; check which commit a release came from before calling it wrong.
-- **Read the failing check's own message first.** CI's checks name what's wrong (a route, a limit, a blank
-  screenshot); they have been right every time so far.
+PRs and releases compile what players get, full VIS and full lighting: `make build` runs both, and
+`LIGHT=quick VIS=fast` is the draft mode for iterating locally. When a check fails, read its own message first:
+CI's checks name what's wrong, and they've been right every time so far.
+
+<!-- lessons:start -->
+<!-- generated by `make readme`: don't edit by hand -->
+**Workflow**
+
+- Run long steps under a timeout with progress output; measure before guessing ([details](docs/lessons/2026-11-21-long-steps-need-progress-and-timeouts.md))
+- Search open and recently merged PRs before starting; another session may be on it ([details](docs/lessons/2026-11-26-check-for-existing-work.md))
+- Never run two git-changing jobs in the same worktree at once ([details](docs/lessons/2026-11-26-one-job-per-worktree.md))
+- In a worktree, branch and rebase from FETCH_HEAD; origin/main can be stale ([details](docs/lessons/2026-11-26-rebase-onto-fetch-head.md))
+
+**Geometry**
+
+- Put decoration players never touch in a func_illusionary (battleaxecombatleague; [details](docs/lessons/2026-11-21-decoration-is-noclip.md))
+- Place items relative to the geometry they sit on, and re-run `make test` after moving geometry (battleaxecombatleague; [details](docs/lessons/2026-11-22-items-move-with-geometry.md))
+- Keep risers at 16 or less with 72+ units of headroom, and add a route for every new walkable area (prairieloop; [details](docs/lessons/2026-11-22-routes-step-height-and-headroom.md))
+- Keep full VIS fast: build walls, floors and roofs as single big brushes, and let split_detail make the rest func_detail (battleaxecombatleague, prairieloop; [details](docs/lessons/2026-11-26-full-vis-needs-func-detail.md))
+- Keep overhead decoration 72+ units above every walkable floor (battleaxecombatleague; [details](docs/lessons/2026-11-26-overhead-decoration-headroom.md))
+
+**Lighting**
+
+- Keep light samples under ~700k: coarse texture scale on big, distant or plain surfaces (battleaxecombatleague; [details](docs/lessons/2026-11-21-light-sample-budget.md))
+- List only real light sources in a map's EMISSIVE table; each becomes many lights (battleaxecombatleague; [details](docs/lessons/2026-11-26-emissive-means-real-lights.md))
+- Cut lighting time in the map: NULL hidden faces, real lights only, bigger patches on big plain surfaces (battleaxecombatleague, prairieloop; [details](docs/lessons/2026-11-26-what-makes-lighting-slow.md))
+
+**Textures**
+
+- Name the sky texture lowercase `sky`, or the game crashes ([details](docs/lessons/2026-11-20-sky-texture-must-be-lowercase.md))
+- Register every frame of an animated texture; it plays at 10 frames per second ([details](docs/lessons/2026-11-25-animated-textures-need-every-frame.md))
+
+**Entities**
+
+- Use additive func_illusionary sheets for weather everywhere; sprites only for local effects (prairieloop; [details](docs/lessons/2026-11-24-snow-sprites-make-patches.md))
+- Design vertical trigger_push launch pads for players dropping or jumping in (prairieloop; [details](docs/lessons/2026-11-25-trigger-push-needs-a-jump.md))
+
+**Content**
+
+- Use only invented names; 'Justin Con' is the one approved real-world name ([details](docs/lessons/2026-11-25-no-real-names.md))
+
+**CI**
+
+- Dispatch follow-up workflows explicitly: the Actions token's pushes and merges start nothing ([details](docs/lessons/2026-11-25-github-token-does-not-trigger-workflows.md))
+- After changing tools/, run `make build test views` on a map and look at the images before pushing ([details](docs/lessons/2026-11-25-run-views-before-pushing-tools.md))
+- Measure speed-ups on GitHub's runners, not only in the sandbox (battleaxecombatleague; [details](docs/lessons/2026-11-26-measure-where-it-runs.md))
+- Check which commit a release came from before calling it wrong ([details](docs/lessons/2026-11-26-releases-follow-merge-order.md))
+- Add non-map folders under maps/<map>/ to map-check's map-change filter ([details](docs/lessons/2026-11-26-video-scripts-arent-map-changes.md))
+
+**GitHub**
+
+- From Claude sessions, use GitHub's REST API (no GraphQL); ask the human for deletions and settings ([details](docs/lessons/2026-11-25-claude-sessions-use-rest.md))
+
+**Go**
+
+- Lint Go with CI's golangci-lint in mind: apply modernize's rewrites by hand and re-lint after rebasing ([details](docs/lessons/2026-11-26-go-lint-matches-ci.md))
+
+**Python**
+
+- Moving a module into a package makes everything that runs it import the package's `__init__` first ([details](docs/lessons/2026-11-26-package-init-runs-first.md))
+<!-- lessons:end -->
 
 ## Hard rules (the checks enforce most of these)
 

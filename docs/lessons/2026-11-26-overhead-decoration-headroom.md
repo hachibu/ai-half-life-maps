@@ -1,7 +1,7 @@
 ---
-title: Overhead decoration must clear 72 units above every walkable floor
-tags: [routes, headroom, decoration, battleaxecombatleague, general]
-gate: checks
+title: Keep overhead decoration 72+ units above every walkable floor
+area: geometry
+tags: [battleaxecombatleague]
 source: BattleAxe indoor restyle (#3)
 ---
 
