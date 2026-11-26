@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""BattleAxe Combat League - Fight Night. Pay-per-view stadium card for Half-Life DM.
-Players spawn in the red / blue corner locker rooms and walk out to the octagon."""
+"""BattleAxe Combat League - Fight Night. Indoor arena card for Half-Life DM.
+Players spawn in the red / blue corner locker rooms and walk out to the octagon.
+Look: enclosed arena (roof, rigging, glass suites), charcoal panels, red/black branding."""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))     # repo root, for tools.*
@@ -16,7 +17,7 @@ from tools.assets import skyfire
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = str(build_dir("battleaxecombatleague"))
 TEX = fn_textures.write_wad(os.path.join(OUT, "battleaxecombatleague.wad"))
-SCALE = {"ARENAFLOOR": 4, "STANDS": 2, "SEATS": 4, "STADWALL": 4, "CONCRETE": 2, "CROWDTOP": 4, "CEILTILE": 2}
+SCALE = {"ARENAFLOOR": 4, "STANDS": 2, "SEATS": 4, "STADWALL": 4, "CONCRETE": 2, "CROWDTOP": 4, "CEILTILE": 2, "ROOF": 4, "TRUSS": 4, "REDSTRIP": 4, "BLUESTRIP": 4}
 
 # ------------------------------------------------------------------ brush helpers
 Z = np.array([0, 0, 1.0])
@@ -114,7 +115,7 @@ def rq(a0, a1, seg, t0=0.0, t1=1.0):
     return [tuple(onoct(a0, seg, t0)), tuple(onoct(a1, seg, t0)), tuple(onoct(a1, seg, t1)), tuple(onoct(a0, seg, t1))]
 
 S = 2800                 # shell half-size
-SKYTOP = 1500
+SKYTOP = 1500            # roof deck height (indoor arena: no sky)
 def ring_to_square(a, seg):
     """Piece between octagon apothem a and the square shell, for one segment."""
     rays = [(S, -S * T8), (S, S * T8), (S * T8, S), (-S * T8, S), (-S, S * T8), (-S, -S * T8), (-S * T8, -S), (S * T8, -S)]
@@ -134,12 +135,12 @@ def bent(cls, brushes, **kv):
     BENTS.append(s + "".join(brushes) + "}\n")
 
 # ------------------------------------------------------------------ shell + floor
-W.append(box(-S - 16, -S - 16, SKYTOP, S + 16, S + 16, SKYTOP + 16, "sky"))
-W.append(box(-S - 16, -S - 16, -48, S + 16, S + 16, -32, "sky"))
-W.append(box(S, -S - 16, -32, S + 16, S + 16, SKYTOP, "sky"))
-W.append(box(-S - 16, -S - 16, -32, -S, S + 16, SKYTOP, "sky"))
-W.append(box(-S, S, -32, S, S + 16, SKYTOP, "sky"))
-W.append(box(-S, -S - 16, -32, S, -S, SKYTOP, "sky"))
+W.append(box(-S - 16, -S - 16, SKYTOP, S + 16, S + 16, SKYTOP + 16, "STADWALL", bottom="ROOF"))
+W.append(box(-S - 16, -S - 16, -48, S + 16, S + 16, -32, "STADWALL"))
+W.append(box(S, -S - 16, -32, S + 16, S + 16, SKYTOP, "STADWALL"))
+W.append(box(-S - 16, -S - 16, -32, -S, S + 16, SKYTOP, "STADWALL"))
+W.append(box(-S, S, -32, S, S + 16, SKYTOP, "STADWALL"))
+W.append(box(-S, -S - 16, -32, S, -S, SKYTOP, "STADWALL"))
 W.append(box(-S, -S, -32, S, S, 0, "ARENAFLOOR"))
 
 # ------------------------------------------------------------------ lower bowl
@@ -246,8 +247,15 @@ for seg in range(8):
         for i, (t0, t1) in enumerate(AISLES):
             CROWD.append(prism(rq(a0 + 6, a0 + 42, seg, t0, t1), uh(k), uh(k) + 40, crowd_spec(k * 5 + seg + i + 1, uh(k) + 40), top="CROWDTOP"))
 UTOP = UA0 + DEP * UNT              # 2652
+SUITE_Z0, SUITE_Z1 = 900, 1020           # trim ledge must clear a player (72) on the top row (floor 800)
 for seg in range(8):
-    W.append(prism(ring_to_square(UTOP, seg), 0, uh(UNT - 1) + 160, "STADWALL", top="CONCRETE"))
+    inward = lambda n2, seg=seg, t=None: t if n2 @ segn(seg) < -0.99 else "STADWALL"
+    W.append(prism(ring_to_square(UTOP, seg), 0, SUITE_Z0, "STADWALL", top="CONCRETE"))
+    W.append(prism(ring_to_square(UTOP, seg), SUITE_Z0, SUITE_Z1,
+                   lambda n2, seg=seg: {"name": "SUITES", "su": 2, "sv": (SUITE_Z1 - SUITE_Z0) / 64,
+                                        "ov": SUITE_Z1 / ((SUITE_Z1 - SUITE_Z0) / 64)} if n2 @ segn(seg) < -0.99 else "STADWALL"))
+    W.append(prism(ring_to_square(UTOP, seg), SUITE_Z1, SKYTOP, "STADWALL"))
+    W.append(prism(rq(UTOP - 10, UTOP, seg), SUITE_Z0 - 8, SUITE_Z0, "REDSTRIP"))
 
 # ------------------------------------------------------------------ south: walkout stage, LED wall, red locker room
 ST_A0, LED_A = 1300, 1716
@@ -272,15 +280,20 @@ for seg_par in ((0, 0.46), (0.54, 1)):
                    lambda n2, sp=sp: sp if n2[1] > 0.99 else "STADWALL", top="CAGEPAD"))
 # red locker room dressing
 for x in range(-RX + 8, RX - 40, 48):
-    if abs(x + 20) < 70: continue
+    if abs(x + 20) < 110: continue
     W.append(box(x, RY0, RZ0, x + 40, RY0 + 24, RZ0 + 96, "LOCKER_R"))
 W.append(box(-RX, RY0 + 60, RZ0, -RX + 40, RY1 - 40, RZ0 + 96, "LOCKER_R"))
 W.append(box(RX - 40, RY0 + 60, RZ0, RX, RY1 - 40, RZ0 + 96, "LOCKER_R"))
 W.append(box(-200, -1930, RZ0, 200, -1910, RZ0 + 18, "COUCH"))
-W.append(sign("CORNER_R", -120, RY0 + 24, RZ0 + 110, 120, RY0 + 28, RZ0 + 150, "n"))
+W.append(sign("CORNER_R", -112, RY0 + 2, RZ0 + 28, 104, RY0 + 6, RZ0 + 136, "n"))
 light(0, -1880, 160, (255, 80, 70), 160); light(-200, -1800, 160, (255, 230, 210), 90); light(200, -1800, 160, (255, 230, 210), 90)
 # runway + cage stairs
-W.append(box(-56, -ST_A0, 0, 56, -388, 16, "STAGE"))
+RUN = lambda name: {"name": name, "su": 112 / 128, "sv": 112 / 128, "ou": 56 / (112 / 128)}
+W.append(box(-56, -ST_A0, 0, 56, -388, 16, "STAGE", top=RUN("WALKWAY_R")))
+W.append(box(-56, 388, 0, 56, A0, 16, "STAGE", top=RUN("WALKWAY_B")))       # blue walkway
+for x0 in (-60, 52):                                                           # red gate light bars
+    W.append(box(x0, -LED_A, 24, x0 + 8, -LED_A + 8, 144, "REDSTRIP"))
+W.append(box(-60, -LED_A, 136, 60, -LED_A + 8, 144, "REDSTRIP"))
 for sgn in (1, -1):
     y_in = 340 * sgn
     for z, (ya, yb) in ((12, (388, 364)), (24, (364, 340))):
@@ -290,11 +303,17 @@ for sgn in (1, -1):
 # ------------------------------------------------------------------ north: blue locker room under the stands
 BR_Y0, BR_Y1 = A0 + DEP * ROOM_K[0], A0 + DEP * (ROOM_K[1] - 1)  # 1476..1812
 for x in range(-ROOM_X + 8, ROOM_X - 40, 48):
+    if abs(x + 20) < 110: continue
     W.append(box(x, BR_Y1 - 24, 0, x + 40, BR_Y1, 96, "LOCKER_B"))
 W.append(box(-ROOM_X, BR_Y0 + 40, 0, -ROOM_X + 24, BR_Y1 - 60, 96, "LOCKER_B"))
 W.append(box(ROOM_X - 24, BR_Y0 + 40, 0, ROOM_X, BR_Y1 - 60, 96, "LOCKER_B"))
 W.append(box(-160, 1640, 0, 160, 1660, 18, "COUCH"))
-W.append(sign("CORNER_B", -120, BR_Y1 - 28, 110, 120, BR_Y1 - 24, 150, "s"))
+W.append(sign("CORNER_B", -112, BR_Y1 - 6, 28, 104, BR_Y1 - 2, 136, "s"))
+for x0 in (-TUN_X - 8, TUN_X):
+    W.append(box(x0, A0 - 8, 0, x0 + 8, A0, TUN_TOP, "BLUESTRIP"))
+W.append(sign("CORNER_B", -96, A0 - 12, TUN_TOP + 24, 96, A0 - 8, TUN_TOP + 120, "s", back="CAGEPAD"))
+for x in (-90, 82):
+    W.append(box(x, A0 - 12, 0, x + 8, A0 - 8, TUN_TOP + 24, "METAL"))
 light(0, 1600, 150, (80, 120, 255), 170); light(-180, 1720, 150, (220, 230, 255), 80); light(180, 1720, 150, (220, 230, 255), 80)
 for y in (1000, 1200, 1400):
     W.append(box(-6, y - 6, TUN_TOP - 4, 6, y + 6, TUN_TOP, "METAL", bottom="LAMP"))
@@ -304,8 +323,11 @@ for y in (1000, 1200, 1400):
 CA, FA, PA = 300, 304, 340        # canvas, fence, platform apothems
 PZ = 36
 W.append(prism(octv(CA), 0, PZ, "APRON", top=fit("CANVAS", (0, 0, 1), -307, 307, 0, 1) | {"su": 2.4, "sv": 2.4, "ou": 128, "ov": 128}))
+APRON_SIDE = {"name": "APRONSIDE", "su": 1, "sv": PZ / 64, "ov": PZ / (PZ / 64)}
 for seg in range(8):
-    W.append(prism(rq(CA, PA, seg), 0, PZ, "APRON"))
+    W.append(prism(rq(CA, PA - 6, seg), 0, PZ, "APRON"))
+    W.append(prism(rq(PA - 6, PA, seg), 0, PZ, lambda n2, seg=seg: APRON_SIDE if n2 @ segn(seg) > 0.99 else "APRON",
+                   top="REDSTRIP"))
 fence, rail = [], []
 for seg in range(8):
     spans = [(0, 0.36), (0.64, 1)] if seg in (2, 6) else [(0, 1)]
@@ -314,8 +336,14 @@ for seg in range(8):
         rail.append(prism(rq(CA - 2, FA + 2, seg, t0, t1), PZ + 80, PZ + 86, "CAGEPAD"))
 bent("func_wall", fence, rendermode=4, renderamt=255)
 W.extend(rail)
+PH = 104
 for (x, y) in octv(FA - 2):
-    W.append(box(x - 6, y - 6, PZ, x + 6, y + 6, PZ + 90, "CAGEPAD"))
+    post = {}
+    for f, nrm in (("n", (0, 1, 0)), ("s", (0, -1, 0)), ("e", (1, 0, 0)), ("w", (-1, 0, 0))):
+        u, _ = axes(np.array(nrm, float))
+        us = [np.array([x + dx, y + dy, 0]) @ u for dx in (-12, 12) for dy in (-12, 12)]
+        post[f] = fit("CAGEPOST", nrm, min(us), max(us), PZ, PZ + PH)
+    W.append(box(x - 12, y - 12, PZ, x + 12, y + 12, PZ + PH, "CAGEPAD", **post))
 
 # ------------------------------------------------------------------ lighting rig, beams, jumbotron, towers
 TZ = 560
@@ -336,7 +364,7 @@ JZ0, JZ1 = 700, 860
 W.append(box(-128, -128, JZ0, 128, 128, JZ1, "METAL", n=fit("JUMBO2", (0, 1, 0), -128, 128, JZ0, JZ1),
              s=fit("JUMBO1", (0, -1, 0), -128, 128, JZ0, JZ1), e=fit("JUMBO1", (1, 0, 0), -128, 128, JZ0, JZ1),
              w=fit("JUMBO2", (-1, 0, 0), -128, 128, JZ0, JZ1)))
-W.append(box(-136, -136, JZ0 - 24, 136, 136, JZ0, "METAL", n={"name": "RIBBON1", "su": 1.0625, "sv": 0.75, "ov": JZ0 / 0.75},
+W.append(box(-136, -136, JZ0 - 24, 136, 136, JZ0, "METAL", bottom=fit("AXELOGO", (0, 0, -1), -136, 136, -136, 136) | {"sv": 272 / 64, "ov": 136 / (272 / 64)}, n={"name": "RIBBON1", "su": 1.0625, "sv": 0.75, "ov": JZ0 / 0.75},
              s={"name": "RIBBON2", "su": 1.0625, "sv": 0.75, "ov": JZ0 / 0.75}, e={"name": "RIBBON3", "su": 1.0625, "sv": 0.75, "ov": JZ0 / 0.75},
              w={"name": "RIBBON1", "su": 1.0625, "sv": 0.75, "ov": JZ0 / 0.75}))
 for sx in (-1, 1):
@@ -346,14 +374,20 @@ TW = 1900
 for sx in (-1, 1):
     for sy in (-1, 1):
         cx, cy = sx * TW, sy * TW
-        base = uh(UNT - 1) + 160
-        W.append(box(cx - 32, cy - 32, base, cx + 32, cy + 32, 1320, "METAL"))
-        n = np.array([-sx, -sy, 0]) / math.sqrt(2)
-        W.append(hull_brush([(cx + dx, cy + dy, z) for dx in (-90, 90) for dy in (-90, 90) for z in (1320, 1400)
-                             if abs(dx * sy - dy * sx) < 200], "METAL"))
-        W.append(box(cx - 60 * sx - 50, cy - 60 * sy - 50, 1300, cx - 60 * sx + 50, cy - 60 * sy + 50, 1320, "METAL", bottom="LIGHTBANK",
+        bx, by = cx - 60 * sx, cy - 60 * sy
+        W.append(box(bx - 50, by - 50, 1300, bx + 50, by + 50, 1320, "METAL", bottom="LIGHTBANK",
                      **{("w" if sx > 0 else "e"): "LIGHTBANK", ("s" if sy > 0 else "n"): "LIGHTBANK"}))
-        W.append(beam((cx, cy, 1340), (sx * 120, sy * 120, JZ1), 6, "METAL"))
+        W.append(box(bx - 6, by - 6, 1320, bx + 6, by + 6, SKYTOP, "METAL"))
+        W.append(beam((bx, by, 1320), (sx * 120, sy * 120, JZ1), 6, "METAL"))
+        W.append(beam((sx * 120, sy * 120, JZ1), (sx * 120, sy * 120, SKYTOP), 3, "METAL"))
+RZ = SKYTOP - 60                                       # roof rigging
+for k in range(-4, 5):
+    W.append(box(k * 600 - 10, -S + 200, RZ, k * 600 + 10, S - 200, RZ + 24, "TRUSS"))
+    W.append(box(-S + 200, k * 600 - 10, RZ - 24, S - 200, k * 600 + 10, RZ, "TRUSS"))
+for x in range(-2100, 2101, 600):
+    for y in range(-2100, 2101, 600):
+        if abs(x) < 400 and abs(y) < 400: continue
+        W.append(box(x + 280 - 80, y + 300 - 10, SKYTOP - 8, x + 280 + 80, y + 300 + 10, SKYTOP, "METAL", bottom="LAMP"))
         light(cx - 200 * sx, cy - 200 * sy, 1240, (255, 250, 235), 4200)
 
 # ------------------------------------------------------------------ floor: press row, broadcast desk, camera crane, floor seats
@@ -423,7 +457,9 @@ for seg in range(8):
     p = onoct(800, seg, 0.5)
     if seg not in (2, 6): ITEMS.append((AMMO[seg % len(AMMO)], p[0], p[1], 10))
 for x in (-200, 200):
-    ITEMS.append(("item_healthkit", x, -1500, 34)); ITEMS.append(("item_battery", x, 1100, 10))
+    ITEMS.append(("item_healthkit", x, -1500, 34))
+for x in (-40, 40):
+    ITEMS.append(("item_battery", x, 1100, 10))          # in the blue tunnel
 for x, y, z in [(-200, -1830, RZ0), (-60, -1830, RZ0), (80, -1830, RZ0), (200, -1830, RZ0), (-120, -1870, RZ0), (120, -1870, RZ0),
                 (-180, 1560, 0), (-60, 1560, 0), (60, 1560, 0), (180, 1560, 0), (-120, 1720, 0), (120, 1720, 0)]:
     face = 90 if y < 0 else 270
@@ -433,13 +469,12 @@ for cls, x, y, z in ITEMS:
     point(cls, round(x, 1), round(y, 1), z, angles="0 %d 0" % (int(abs(x * 3 + y)) % 8 * 45))
 point("ambient_generic", 0, 0, 400, message="ambience/crowd1.wav", health=10, spawnflags=1)
 
-world = ('{\n"classname" "worldspawn"\n"mapversion" "220"\n"wad" "battleaxecombatleague.wad"\n"skyname" "battleaxecombatleague"\n'
+world = ('{\n"classname" "worldspawn"\n"mapversion" "220"\n"wad" "battleaxecombatleague.wad"\n'
          '"message" "BattleAxe Combat League - Fight Night"\n"_emissive" "%s"\n' %
          ",".join("%s:%d" % kv for kv in fn_textures.EMISSIVE.items()) + "".join(W) + "}\n")
 with open(os.path.join(OUT, "battleaxecombatleague.map"), "w", newline="\r\n") as f:
     f.write(world + "".join(BENTS) + "".join(ENTS))
 VALVE = os.path.join(OUT, "valve")
 os.makedirs(os.path.join(VALVE, "gfx", "env"), exist_ok=True); os.makedirs(os.path.join(VALVE, "sprites"), exist_ok=True)
-skyfire.write_skybox(os.path.join(VALVE, "gfx", "env", "battleaxecombatleague"))
 skyfire.write_sprite(os.path.join(VALVE, "sprites", "battleaxecombatleague_fire.spr"))
 print("world brushes", len(W), "brush ents", len(BENTS), "items", len(ITEMS), "spawns", len(SPAWNS), "point ents", len(ENTS))
