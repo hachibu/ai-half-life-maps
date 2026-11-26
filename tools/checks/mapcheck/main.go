@@ -9,6 +9,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -212,13 +213,15 @@ type route struct {
 	Pts   [][2]float64
 }
 
+var errRouteShape = errors.New("route must be [name, floor_z, points]")
+
 func (r *route) UnmarshalJSON(b []byte) error {
 	var raw []json.RawMessage
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return err
 	}
 	if len(raw) != 3 {
-		return fmt.Errorf("route must be [name, floor_z, points]")
+		return errRouteShape
 	}
 	if err := json.Unmarshal(raw[0], &r.Name); err != nil {
 		return err

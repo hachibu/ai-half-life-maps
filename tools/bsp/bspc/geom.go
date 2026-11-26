@@ -86,7 +86,7 @@ func npRoundVec(v Vec, dec int) Vec {
 }
 
 func allclose(a, b Vec) bool {
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if math.Abs(a[i]-b[i]) > 1e-8+1e-5*math.Abs(b[i]) {
 			return false
 		}
@@ -142,7 +142,7 @@ func split(poly Poly, n Vec, d float64) (Poly, Poly, int) {
 		return nil, poly, stBack
 	}
 	var f, b Poly
-	for i := 0; i < k; i++ {
+	for i := range k {
 		j := (i + 1) % k
 		p, q := poly[i], poly[j]
 		sp, sq := sides[i], sides[j]
@@ -198,7 +198,7 @@ func mean(pts []Vec) Vec {
 func bounds(pts []Vec) (Vec, Vec) {
 	mn, mx := pts[0], pts[0]
 	for _, p := range pts[1:] {
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			mn[i] = math.Min(mn[i], p[i])
 			mx[i] = math.Max(mx[i], p[i])
 		}

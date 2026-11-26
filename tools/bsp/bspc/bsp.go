@@ -13,18 +13,18 @@ type SolidFn func(Vec) bool
 func parallelFor(n int, f func(i int)) {
 	workers := runtime.GOMAXPROCS(0)
 	if n < 2 || workers < 2 {
-		for i := 0; i < n; i++ {
+		for i := range n {
 			f(i)
 		}
 		return
 	}
 	var wg sync.WaitGroup
 	next := make(chan int, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		next <- i
 	}
 	close(next)
-	for w := 0; w < workers; w++ {
+	for range workers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -36,7 +36,7 @@ func parallelFor(n int, f func(i int)) {
 	wg.Wait()
 }
 
-// ------------------------------------------------------------------ CSG
+// ------------------------------------------------------------------ CSG.
 func visibleFaces(brushes []Brush, solid SolidFn) []Face {
 	wins := make([][]Winding, len(brushes))
 	parallelFor(len(brushes), func(i int) { wins[i] = brushWindings(brushes[i]) })
@@ -101,7 +101,7 @@ func visibleFaces(brushes []Brush, solid SolidFn) []Face {
 	return out
 }
 
-// ------------------------------------------------------------------ planes
+// ------------------------------------------------------------------ planes.
 type planeKey struct{ a, b, c, d float64 }
 type DPlane struct {
 	N   Vec
@@ -143,7 +143,7 @@ func planeIndex(n Vec, d float64) (int, bool) {
 	return len(dplanes) - 1, flip
 }
 
-// ------------------------------------------------------------------ BSP build
+// ------------------------------------------------------------------ BSP build.
 func splitRegion(region []Poly, n Vec, d float64) ([]Poly, []Poly) {
 	var fr, bk []Poly
 	var caps []Vec
@@ -179,7 +179,7 @@ func splitRegion(region []Poly, n Vec, d float64) ([]Poly, []Poly) {
 			u[i] = npRoundVec(p, 4)
 		}
 		sort.Slice(u, func(i, j int) bool {
-			for k := 0; k < 3; k++ {
+			for k := range 3 {
 				if u[i][k] != u[j][k] {
 					return u[i][k] < u[j][k]
 				}
@@ -280,10 +280,7 @@ func chooseSplitter(polys []Face) (Vec, float64) {
 		items = append(items, cand{f.N, f.D})
 	}
 	if len(items) > 48 {
-		step := len(items) / 48
-		if step < 1 {
-			step = 1
-		}
+		step := max(len(items)/48, 1)
 		var sub []cand
 		for i := 0; i < len(items); i += step {
 			sub = append(sub, items[i])
@@ -388,7 +385,7 @@ func buildTree(polys []Face, region []Poly, solid SolidFn) *Node {
 func expandBrush(b Brush, mins, maxs Vec) Brush {
 	bmn, bmx := bounds(windingPoints(brushWindings(b)))
 	pl := append(Brush(nil), b...)
-	for ax := 0; ax < 3; ax++ {
+	for ax := range 3 {
 		for _, sgn := range []float64{1, -1} {
 			var n Vec
 			n[ax] = sgn
@@ -412,7 +409,7 @@ func expandBrush(b Brush, mins, maxs Vec) Brush {
 	out := make(Brush, len(pl))
 	for k, p := range pl {
 		off := 0.0
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			if p.N[i] > 0 {
 				off += p.N[i] * -mins[i]
 			} else {
