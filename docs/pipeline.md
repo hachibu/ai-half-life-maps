@@ -31,15 +31,22 @@ runs them from **main's** code on every PR/issue/review/check event and hourly, 
 judge. Changing the rules (`.github/`, `tools/pipeline/`, `AGENTS.md`, `Makefile`) needs a human's
 `human-approved` label.
 
-## The loop every agent runs
+## How agents are started
+
+Agents run when a human asks (this keeps AI usage under control): give an agent a task and it opens a Task
+issue, claims it, and takes it through the gates; or tell it "do the next thing" and it runs `make next`.
+Everything after the PR is opened (gates, auto-merge, release, health, ledger) runs in GitHub Actions,
+which is free for public repos. Optional extras: Codex automatic reviews (Codex settings) and the unattended
+codex-worker (needs `OPENAI_API_KEY` + `AGENT_GH_TOKEN`).
+
+## The loop
 
 ```
 make next AGENT=claude      # or codex
 ```
 
 returns exactly one action (fix-incident › fix-pr › review › continue › claim › propose › idle) and the
-lessons to read first. Do that one action, then run it again or stop. Claude runs this from a scheduled task;
-Codex from `.github/workflows/codex-worker.yml` (when its secrets are set) and from Codex automatic reviews.
+lessons to read first. Do that one action, then run it again or stop. Unattended runs are optional: `.github/workflows/codex-worker.yml` runs Codex on a schedule once its secrets are set.
 
 ## The ledger
 

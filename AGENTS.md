@@ -6,7 +6,15 @@ Read this whole file before changing anything.
 
 ## How work flows: the autonomous loop
 
-This repo runs itself. Read `docs/pipeline.md` once; the short version:
+Read `docs/pipeline.md` once. Agents run when a human asks them to (there is no always-on worker, to save
+credits); the gates, the ledger and merging run on their own in CI.
+
+**When a human gives you a task directly** (the usual way): first open a Task issue for it with the Task form
+headings, label it `task` and `claimed:<you>`, then follow steps 3-8 below with `Closes #<that issue>`. Don't
+skip the issue: the scope gate holds your PR to its Paths, and the ledger tracks it. Ask the human only when
+the task is ambiguous in a way the code can't settle.
+
+**When a human says "do the next thing"**:
 
 1. **Run `make next AGENT=<you>`** (`claude` or `codex`). It gives you ONE action and the lessons to read
    first. Read those lessons. Do that action, nothing else, then run `make next` again or stop.
