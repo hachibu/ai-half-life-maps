@@ -60,7 +60,13 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-publish          # one publish at a time, so two releases never pick the same tag
+      cancel-in-progress: false
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -68,8 +74,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="build-$(date -u +%Y%m%d-%H%M)-${GITHUB_SHA::7}"
-          gh release create "$TAG" dist/*/*.zip --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes
+          # Tag: v2026.11.26 for the day's first release, then v2026.11.26.2, .3 ...
+          DAY="v$(date -u +%Y.%m.%d)"
+          N=$(git ls-remote --tags origin "refs/tags/$DAY" "refs/tags/$DAY.*" | wc -l)
+          TAG="$DAY"; [ "$N" -gt 0 ] && TAG="$DAY.$((N + 1))"
+          # Title: "Nov 26, 2026 · <the merged change>"
+          SUBJECT=$(git log -1 --format=%s)
+          TITLE="$(date -u '+%b %-d, %Y') · $SUBJECT"
+          echo "release $TAG: $TITLE"
+          gh release create "$TAG" dist/*/*.zip --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$TITLE" --generate-notes
 
   screenshots:
     needs: build
