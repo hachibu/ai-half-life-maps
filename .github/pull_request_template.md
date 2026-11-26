@@ -3,8 +3,6 @@ Write this for a person who hasn't seen your code or the chat that produced it.
 Plain language, short sentences, no internal jargon. Replace every comment; delete sections only where noted.
 -->
 
-Closes #
-
 ## Summary
 
 <!-- 1-3 sentences: what this pull request does and why.
@@ -52,7 +50,6 @@ paste here
 - [ ] `make test` passes locally and CI is green
 - [ ] every new walkable area has a route in `ROUTES`
 - [ ] every visible change has a named view, listed under Screenshots, and I looked at the images
-- [ ] only my claimed zone or files changed (or the exception is explained under Changes)
 - [ ] only original art, names and sounds
 
 ## Not verified / risks

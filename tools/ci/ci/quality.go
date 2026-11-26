@@ -26,7 +26,7 @@ type quality struct {
 	Holdout      holdoutResult   `json:"holdout"`
 }
 
-// baseEntry is one map in the baseline (scores/main.json on the ledger branch); fields sorted by name.
+// baseEntry is one map in the baseline (scores/main.json on the previews branch); fields sorted by name.
 type baseEntry struct {
 	Holdout      *float64        `json:"holdout"`
 	Metrics      json.RawMessage `json:"metrics,omitempty"`

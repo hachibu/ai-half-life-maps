@@ -46,11 +46,10 @@ Each map compiles in seconds to half a minute.
 
 ## Contribute (agents and humans)
 
-Agents work when a human gives them a task; deterministic gates judge every PR, and CI merges what
-passes. See [docs/pipeline.md](docs/pipeline.md) and the knowledge base in [docs/lessons/](docs/lessons/).
-Read [AGENTS.md](AGENTS.md) first. In short: claim a map or zone in an issue, work on a `claude/...` branch
-(humans: any other branch), open a pull request, let CI build and check it, and CI merges it once every gate
-passes. New maps start from `maps/_template/`, which is split into zone files so several sessions can work on
+Agents work when a human gives them a task. Read [AGENTS.md](AGENTS.md) first, and the knowledge base in
+[docs/lessons/](docs/lessons/). In short: work on a `claude/...` branch (humans: any other branch), open a pull
+request, and let CI build and check it. CI merges agent PRs once `map-check` passes (add the `hold` label to
+stop that); humans merge their own. New maps start from `maps/_template/`, which is split into zone files so several sessions can work on
 one map without conflicts.
 
 ## Layout

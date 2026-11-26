@@ -1,0 +1,40 @@
+name: automerge
+
+# Merges a claude/* pull request as soon as map-check passes on its head commit, then starts the release.
+# (A merge made with the Actions token doesn't trigger push workflows, so the release is dispatched here.)
+# Humans merge their own PRs. To stop an agent PR from merging, add the `hold` label or make it a draft.
+# Runs main's copy of this file (workflow_run), never code from the pull request.
+on:
+  workflow_run:
+    workflows: [map-check]
+    types: [completed]
+
+permissions:
+  contents: write                 # merge, delete the merged branch
+  pull-requests: write
+  actions: write                  # dispatch the release
+
+jobs:
+  merge:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SHA: ${{ github.event.workflow_run.head_sha }}
+      BRANCH: ${{ github.event.workflow_run.head_branch }}
+    steps:
+      - name: Merge the PR if it's an agent's, still at this commit, and not on hold
+        run: |
+          case "$BRANCH" in claude/*) ;; *) echo "$BRANCH is not an agent branch: a human merges it"; exit 0 ;; esac
+          gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&head=$GITHUB_REPOSITORY_OWNER:$BRANCH" > pulls.json
+          PR=$(jq -c --arg sha "$SHA" '[.[] | select(.head.sha == $sha)][0]' pulls.json)
+          if [ "$PR" = "null" ]; then echo "no open PR at $SHA (a newer commit was pushed?)"; exit 0; fi
+          N=$(echo "$PR" | jq -r .number); TITLE=$(echo "$PR" | jq -r .title)
+          if [ "$(echo "$PR" | jq -r .draft)" = "true" ]; then echo "#$N is a draft"; exit 0; fi
+          if echo "$PR" | jq -e '[.labels[].name] | index("hold")' > /dev/null; then echo "#$N is on hold"; exit 0; fi
+          gh api -X PUT "repos/$GITHUB_REPOSITORY/pulls/$N/merge" -f merge_method=squash -f sha="$SHA" \
+            -f commit_title="$TITLE (#$N)" > /dev/null
+          echo "merged #$N"
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" || true
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/dispatches" -f ref=main
