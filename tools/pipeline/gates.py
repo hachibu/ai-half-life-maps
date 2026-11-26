@@ -12,7 +12,6 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tools.pipeline import OTHER
 from tools.pipeline import model as M
 
 OK, PENDING, FAIL = "ok", "pending", "fail"
@@ -69,7 +68,7 @@ def gate_claim(task, other_claims, claim_counts):
         hits = [(p, q) for p in task["paths"] for q in o["paths"] if M.path_overlap(p, q)]
         if hits:
             r.fail("paths overlap #%d (claimed earlier by %s): %s vs %s" % (o["number"], o["agent"], hits[0][0], hits[0][1]))
-    return r                    # the WIP limit applies to self-chosen work only (tools.pipeline.next)
+    return r
 
 
 # ================================================================== PR gates
@@ -154,38 +153,33 @@ def gate_tests_ratchet(files, labels):
 
 
 def gate_review(agent, head_sha, comments, reviews, review_comments, head_date, labels):
-    """built -> reviewed: the *other* agent approved this exact commit (and nobody asked for changes on it)."""
+    """built -> reviewed: nobody else asked for changes on this exact commit.
+
+    Approval is optional: agents run only when a human asks, so there may be no second agent to review, and an
+    agent may merge its own PR once every other gate is green. A review still counts when one happens: a
+    `verdict: changes` from anyone but the author, or Codex's automatic review leaving inline findings on the
+    head commit, blocks the merge until a new commit is pushed. A human can pause anything with `hold`."""
     r = Result("review")
     if "hold" in labels:
         return r.wait("on hold (label `hold`)")
     if "human-approved" in labels:
         return r                                       # a human may always approve
-    want = OTHER.get(agent)        # humans' PRs: either agent may review
-    approvals, objections = [], []
+    objections = []
     for c in list(comments) + list(reviews):
         rv = M.parse_agent_review(c.get("body"))
-        if not rv or not head_sha.lower().startswith(rv["sha"][:7]) or len(rv["sha"]) < 7:
-            continue
+        if not rv or len(rv["sha"]) < 7 or not head_sha.lower().startswith(rv["sha"][:7]):
+            continue                                   # not a review block, or a review of an older commit
         if rv["reviewer"] == agent:
-            continue                                   # no self-review
-        if want and rv["reviewer"] != want:
-            continue
-        (approvals if rv["verdict"] == "approve" else objections).append(rv["reviewer"])
-    if want == "codex" or want is None:               # Codex's native GitHub review (automatic reviews)
-        codex_reviews = [x for x in reviews if M.is_codex_login(x.get("user", {}).get("login"))
-                         and x.get("commit_id") == head_sha]
-        codex_notes = [x for x in comments if M.is_codex_login(x.get("user", {}).get("login"))
-                       and x.get("created_at", "") >= head_date]
+            continue                                   # an author can't block (or approve) their own PR
+        if rv["verdict"] != "approve":
+            objections.append(rv["reviewer"])
+    if agent != "codex":                               # Codex's automatic GitHub review: inline findings block
         flagged = [x for x in review_comments if M.is_codex_login(x.get("user", {}).get("login"))
                    and x.get("commit_id") == head_sha]
         if flagged:
             objections.append("codex (%d inline finding%s)" % (len(flagged), "s" if len(flagged) > 1 else ""))
-        elif codex_reviews or codex_notes:
-            approvals.append("codex")
     if objections:
         return r.fail("changes requested on %s by %s" % (head_sha[:7], ", ".join(objections)))
-    if not approvals:
-        return r.wait("waiting for a review of %s from %s" % (head_sha[:7], want or "an agent"))
     return r
 
 
