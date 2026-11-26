@@ -50,7 +50,10 @@ jobs:
           echo "$CHANGED"
           exists() { while read -r m; do [ -n "$m" ] && [ -d "maps/$m" ] && echo "$m"; done; }   # deleted maps aren't built
           echo "direct=$(echo "$MAPCHANGED" | grep -oE '^maps/[^_/][^/]*/' | cut -d/ -f2 | sort -u | exists | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
-          if echo "$CHANGED" | grep -qE '^(tools/|Makefile|requirements.txt|\.github/workflows/)'; then
+          # Rebuild every map only when something that builds or checks maps changed. Docs, the pipeline,
+          # the README generator and the other workflows can't change a map, so they build nothing.
+          # (main is still rebuilt in full by the release workflow after every merge.)
+          if echo "$CHANGED" | grep -qE '^(go/|tools/(bsp|assets|checks|render|ci)/|tools/(package|mapkit|paths)\.py$|Makefile$|requirements\.txt$|\.github/workflows/map-check\.yml$)'; then
             echo "maps=$ALL" >> "$GITHUB_OUTPUT"
           else
             M=$(echo "$MAPCHANGED" | grep -oE '^maps/[^/]+' | cut -d/ -f2 | sort -u | exists | jq -R . | jq -cs '[.[] | select(length > 0)]')
