@@ -7,4 +7,4 @@ Every unit of work is a GitHub issue (a task) and moves along one graph:
 Each arrow is a gate: a pure function of GitHub data (no model judgement, no PR code executed).
 See docs/pipeline.md for the full description.
 """
-AGENTS = ("claude", "codex")
+AGENTS = ("claude",)   # agent PRs come from claude/<topic> branches; anything else is a human's

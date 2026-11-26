@@ -80,9 +80,9 @@ def main():
     check(G.gate_spec(M.parse_task(issue(8, body=TASK_BODY.replace("prairieloop\n\n###", "nosuch\n\n###", 1))), set(), {"prairieloop"}).state == G.FAIL,
           "unknown map fails spec")
 
-    other = [dict(number=2, agent="codex", paths=["maps/prairieloop/zones/park.py"])]
+    other = [dict(number=2, agent="claude", paths=["maps/prairieloop/zones/park.py"])]
     check(G.gate_claim(t, other, {"claude": 1}).state == G.FAIL, "overlapping earlier claim fails")
-    check(G.gate_claim(t, [dict(number=2, agent="codex", paths=["maps/cagematch/"])], {"claude": 1}).state == G.OK, "disjoint claim passes")
+    check(G.gate_claim(t, [dict(number=2, agent="claude", paths=["maps/cagematch/"])], {"claude": 1}).state == G.OK, "disjoint claim passes")
     check(G.gate_claim(t, [], {"claude": 5}).state == G.OK, "human-assigned claims are not WIP-limited")
 
     tasks = {5: t}
@@ -90,7 +90,7 @@ def main():
     check(ok.state == G.OK, "in-scope PR passes")
     check(G.gate_scope(pr(), "claude", files("maps/cagematch/build.py"), tasks, set()).state == G.FAIL, "out-of-scope file fails")
     check(G.gate_scope(pr(body="no link"), "claude", files("maps/prairieloop/a.py"), tasks, set()).state == G.FAIL, "missing Closes fails")
-    check(G.gate_scope(pr(), "codex", files("maps/prairieloop/a.py"), tasks, set()).state == G.FAIL, "task claimed by other agent fails")
+    check(G.gate_scope(pr(), "claude", files("maps/prairieloop/a.py"), {5: dict(t, claimed=[])}, set()).state == G.FAIL, "unclaimed task fails")
     t2 = dict(t, paths=["maps/prairieloop/", "tools/pipeline/"])
     check(G.gate_scope(pr(), "claude", files("tools/pipeline/gates.py"), {5: t2}, set()).state == G.PENDING, "protected path waits for human-approved")
     check(G.gate_scope(pr(), "claude", files("tools/pipeline/gates.py"), {5: t2}, {"human-approved"}).state == G.OK, "human-approved unlocks protected path")
@@ -116,25 +116,20 @@ def main():
                                                     user=dict(login="hachibu"), created_at="2026-01-02")
     rev = lambda *c, reviews=(), rc=(): G.gate_review("claude", "abcdef1234567", list(c), list(reviews), list(rc), "2026-01-01", set())
     check(rev().state == G.OK, "no review needed: an agent can merge its own PR")
-    check(rev(blk("codex", "approve")).state == G.OK, "other agent approval passes")
+    check(rev(blk("hachibu", "approve")).state == G.OK, "an approval passes")
     check(rev(blk("claude", "approve")).state == G.OK, "self-approval is harmless")
-    check(rev(blk("codex", "changes")).state == G.FAIL, "changes requested fails")
-    check(rev(blk("human-reviewer", "changes")).state == G.FAIL, "changes requested by anyone but the author fails")
+    check(rev(blk("hachibu", "changes")).state == G.FAIL, "changes requested by anyone but the author fails")
     check(rev(blk("claude", "changes")).state == G.OK, "the author's own `changes` block is ignored")
-    check(rev(blk("codex", "changes", "1111111")).state == G.OK, "changes requested on an older commit are ignored")
-    codexbot = dict(user=dict(login="chatgpt-codex-connector[bot]"), commit_id="abcdef1234567", body="", created_at="2026-01-02")
-    check(rev(reviews=[codexbot]).state == G.OK, "Codex automatic review with no findings passes")
-    check(rev(reviews=[codexbot], rc=[codexbot]).state == G.FAIL, "Codex inline finding fails")
-    old_find = dict(codexbot, commit_id="1111111000000")
-    check(rev(rc=[old_find]).state == G.OK, "Codex inline finding on an older commit is ignored")
-    check(G.gate_review("codex", "abcdef1234567", [], [], [codexbot], "2026-01-01", set()).state == G.OK,
-          "Codex's own inline findings don't block a Codex PR")
-    check(G.gate_review("codex", "abcdef1234567", [blk("claude", "approve")], [], [], "2026-01-01", set()).state == G.OK, "Claude approves Codex PR")
-    check(G.gate_review("codex", "abcdef1234567", [blk("claude", "approve")], [], [], "2026-01-01", {"hold"}).state == G.PENDING, "hold label pauses")
+    check(rev(blk("hachibu", "changes", "1111111")).state == G.OK, "changes requested on an older commit are ignored")
+    check(rev(blk("hachibu", "changes"), blk("hachibu", "approve")).state == G.FAIL, "an approval doesn't cancel requested changes")
+    gh_rev = lambda state, sha="abcdef1234567": dict(user=dict(login="hachibu"), state=state, commit_id=sha, body="")
+    check(rev(reviews=[gh_rev("CHANGES_REQUESTED")]).state == G.FAIL, "GitHub 'Request changes' on the head commit fails")
+    check(rev(reviews=[gh_rev("CHANGES_REQUESTED", "1111111000000")]).state == G.OK, "GitHub 'Request changes' on an older commit is ignored")
+    check(rev(reviews=[gh_rev("APPROVED")]).state == G.OK, "GitHub approval passes")
+    check(G.gate_review("claude", "abcdef1234567", [blk("hachibu", "approve")], [], [], "2026-01-01", {"hold"}).state == G.PENDING, "hold label pauses")
     check(G.gate_review("claude", "abcdef1234567", [], [], [], "2026-01-01", {"hold"}).state == G.PENDING, "hold pauses even with no review")
-    check(G.gate_review("claude", "abcdef1234567", [blk("codex", "changes")], [], [], "2026-01-01", {"human-approved"}).state == G.OK,
+    check(G.gate_review("claude", "abcdef1234567", [blk("hachibu", "changes")], [], [], "2026-01-01", {"human-approved"}).state == G.OK,
           "human-approved overrides requested changes")
-
     check(G.gate_review("claude", "abcdef1234567", [], [], [], "2026-01-01", {"human-approved"}).state == G.OK, "human-approved counts as review")
 
     lesson = "---\ntitle: X\ntags: [prairieloop, snow]\ngate: checks\nsource: PR #9\n---\n## What happened\na\n## Why\nb\n## Rule\nc\n"

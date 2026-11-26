@@ -15,4 +15,4 @@ GitHub blocks GITHUB_TOKEN events from triggering workflows, to prevent loops (w
 
 ## Rule
 
-After the pipeline merges, it dispatches release.yml explicitly. A bot that opens PRs (codex-worker) must use a real token (AGENT_GH_TOKEN) so map-check runs.
+After the pipeline merges, it dispatches release.yml explicitly. A bot that opens PRs must use a real token (a fine-grained personal access token) so map-check runs.

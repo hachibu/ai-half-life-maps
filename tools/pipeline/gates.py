@@ -155,10 +155,11 @@ def gate_tests_ratchet(files, labels):
 def gate_review(agent, head_sha, comments, reviews, review_comments, head_date, labels):
     """built -> reviewed: nobody else asked for changes on this exact commit.
 
-    Approval is optional: agents run only when a human asks, so there may be no second agent to review, and an
-    agent may merge its own PR once every other gate is green. A review still counts when one happens: a
-    `verdict: changes` from anyone but the author, or Codex's automatic review leaving inline findings on the
-    head commit, blocks the merge until a new commit is pushed. A human can pause anything with `hold`."""
+    Approval is optional: agents run only when a human asks, so an agent may merge its own PR once every other
+    gate is green. A review still counts when one happens: GitHub's "Request changes" on the head commit, or an
+    `agent-review` block with `verdict: changes` from anyone but the author, blocks the merge until a new
+    commit is pushed.
+    A human can pause anything with `hold`."""
     r = Result("review")
     if "hold" in labels:
         return r.wait("on hold (label `hold`)")
@@ -173,11 +174,9 @@ def gate_review(agent, head_sha, comments, reviews, review_comments, head_date, 
             continue                                   # an author can't block (or approve) their own PR
         if rv["verdict"] != "approve":
             objections.append(rv["reviewer"])
-    if agent != "codex":                               # Codex's automatic GitHub review: inline findings block
-        flagged = [x for x in review_comments if M.is_codex_login(x.get("user", {}).get("login"))
-                   and x.get("commit_id") == head_sha]
-        if flagged:
-            objections.append("codex (%d inline finding%s)" % (len(flagged), "s" if len(flagged) > 1 else ""))
+    for x in reviews:                                  # GitHub's own review: "Request changes" on this commit
+        if x.get("state") == "CHANGES_REQUESTED" and x.get("commit_id") == head_sha:
+            objections.append(x.get("user", {}).get("login") or "a reviewer")
     if objections:
         return r.fail("changes requested on %s by %s" % (head_sha[:7], ", ".join(objections)))
     return r
