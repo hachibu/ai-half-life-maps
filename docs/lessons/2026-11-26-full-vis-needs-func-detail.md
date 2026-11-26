@@ -1,5 +1,5 @@
 ---
-title: Keep full VIS fast: build walls, floors and roofs as single big brushes, and let split_detail make the rest func_detail
+title: Keep full VIS fast: build walls, floors and roofs as single big brushes, and let SplitDetail make the rest func_detail
 area: geometry
 tags: [battleaxecombatleague, prairieloop]
 source: this session (Nov 26)
@@ -15,4 +15,4 @@ VIS works on the spaces structural brushes carve out. Every small structural bru
 
 ## Rule
 
-Write the map's big walls, floors and roofs as single brushes so `split_detail` (tools/mapkit) keeps them structural (two sides >= 256 units); everything smaller becomes func_detail automatically. A detail brush can't seal the map: if hlbsp reports a leak, the sealing piece was too small. Full VIS taking minutes means a map lost its detail split.
+Write the map's big walls, floors and roofs as single brushes so `mapkit.SplitDetail` keeps them structural (two sides >= 256 units); everything smaller becomes func_detail automatically. A detail brush can't seal the map: if hlbsp reports a leak, the sealing piece was too small. Full VIS taking minutes means a map lost its detail split.

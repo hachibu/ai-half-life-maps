@@ -16,6 +16,6 @@ The engine only treats a face as sky (no lightmap, no subdivision) when its text
 
 Name the sky texture `sky` (lowercase), with `skyname` matching the TGA files. `make test` (structure) fails a map whose sky isn't lowercase; never weaken that check.
 
-In a zone-built map the WAD holds only the textures zones list in `TEXTURES`, so one zone must register it:
-`TEXTURES = {"sky": L.T["sky"]}` (casaroble's `shell` zone does). Without it hlcsg stops with
+In a zone-built map the WAD holds only the textures zones list in `Textures`, so one zone must register it:
+`{Name: "sky", Draw: textures.Base("sky")}` (casaroble's `zone_shell.go` does). Without it hlcsg stops with
 `texture SKY not found`.

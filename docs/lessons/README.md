@@ -20,7 +20,7 @@ File name: `YYYY-MM-DD-short-slug.md`.
 ```
 ---
 title: The rule itself, one line, no trailing period
-area: workflow | geometry | lighting | textures | entities | content | ci | github | go | python
+area: workflow | geometry | lighting | textures | entities | content | ci | github | go
 tags: [map names, only if the lesson is about specific maps]
 source: the PR, map or change it came from
 ---

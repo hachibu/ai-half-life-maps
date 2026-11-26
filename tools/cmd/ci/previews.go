@@ -236,7 +236,7 @@ func comment(worktree, prefix, repo, ref, runURL string) (string, error) {
 	img := func(p, alt string) string { return fmt.Sprintf(`<img src="%s" alt="%s" width="420">`, url(p), alt) }
 	out := []string{marker, "## Screenshots", "",
 		fmt.Sprintf("Rendered by CI from this branch ([run](%s)). *Before* is `main`, *after* is this pull request. ", runURL) +
-			"To get a shot of your change, add a named view to your zone's `VIEWS` (or `maps/<map>/tests/views.py`).", ""}
+			"To get a shot of your change, add a named view to your zone's `VIEWS` (or the map's `views.go`).", ""}
 	maps := subdirs(filepath.Join(worktree, prefix))
 	if len(maps) == 0 {
 		out = append(out, "_No previews were produced. The build probably failed; check the run._")

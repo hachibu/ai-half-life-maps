@@ -11,7 +11,7 @@ After the switch to SDHLT, glowing textures stopped lighting anything until EMIS
 
 ## Why
 
-SDHLT reads glowing textures from `info_texlights` (written by `texlights()` in tools/mapkit), and every patch of an emitting surface becomes its own light that hlrad traces.
+SDHLT reads glowing textures from `info_texlights` (written by `mapkit.Texlights`), and every patch of an emitting surface becomes its own light that hlrad traces.
 
 ## Rule
 

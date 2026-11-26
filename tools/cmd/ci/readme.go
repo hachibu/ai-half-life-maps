@@ -5,7 +5,7 @@ package main
 // Main README: the block between <!-- maps:start --> and <!-- maps:end --> gets a featured screenshot and a
 // table linking every map (from maps/*/map.toml: title, description, `hero` view, `featured = true`).
 // Map READMEs: the block between <!-- screenshots:start --> and <!-- screenshots:end --> (appended if missing)
-// gets every view from tests/views.py. Images are the screenshots CI renders for main on every release (the
+// gets every view the map program lists (`go run ./maps/<map> views`). Images are the screenshots CI renders for main on every release (the
 // `previews` branch, main/<map>/<view>.jpg), so they stay current without committing images. Their URLs carry a
 // version (`?v=<previews commit>`) so browsers fetch new images after `make readme V=<commit>`; without V the
 // version already in README.md is kept.
@@ -57,13 +57,9 @@ func readToml(path string) (map[string]string, error) {
 	return kv, sc.Err()
 }
 
-// mapViewNames asks the map's own views.py (map scripts are Python) for its view names, in order.
+// mapViewNames asks the map's own program (go run ./maps/<map> views) for its view names, in order.
 func mapViewNames(root, name string) ([]string, error) {
-	py := os.Getenv("PY")
-	if py == "" {
-		py = "python3"
-	}
-	cmd := exec.Command(py, "-m", "tools.mapkit.views", name) //nolint:gosec // the interpreter the Makefile uses
+	cmd := exec.Command("go", "run", "./maps/"+name, "views") //nolint:gosec // a map directory from maps/
 	cmd.Dir = root
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()

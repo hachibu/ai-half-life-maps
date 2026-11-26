@@ -1,17 +1,18 @@
 ---
-title: Lint Go with CI's golangci-lint in mind: apply modernize's rewrites by hand and re-lint after rebasing
+title: Lint Go with the golangci-lint version CI pins (download its release), and re-lint after rebasing
 area: go
-source: this session (Nov 26)
+source: this session (Nov 26); the Go-only port
 ---
 
 ## What happened
 
-PRs #30, #54 and the complexity-limit work: CI failed three times on lint that passed locally (goconst, a modernize rewrite, a limit lowered against an older main).
+PRs #30, #54 and the complexity-limit work: CI failed three times on lint that passed locally (goconst, a modernize rewrite, a limit lowered against an older main). The sandbox's own golangci-lint is older than the v2.15.0 CI pins and stops with "unknown linters: 'modernize'" on this config.
 
 ## Why
 
-The sandbox's golangci-lint is older than the v2.15.0 CI pins and has no `modernize` linter, and CI lints the PR merged onto the latest main, not the commit you linted.
+Linters change between versions, and CI lints the PR merged onto the latest main, not the commit you linted.
 
 ## Rule
 
-Run `make lint` with the config minus `modernize`, then apply modernize's usual rewrites yourself: `strings.FieldsSeq`/`SplitSeq` when you only range over the result, `slices.Clone`, `strings.CutPrefix`, `for i := range n`, `min`/`max`. Name strings that act as keys (constants). Rebase on the latest main and lint again right before pushing; set complexity limits from a measurement of that main.
+Fetch CI's version from its GitHub release (the sandbox can reach github.com, but not the Go module proxy):
+`curl -sSfL -o /tmp/gcl.tgz https://github.com/golangci/golangci-lint/releases/download/v2.15.0/golangci-lint-2.15.0-linux-amd64.tar.gz`, unpack it and put it first on PATH before `make lint`. Name strings that act as keys (constants: goconst counts per package). Rebase on the latest main and lint again right before pushing; set complexity limits from a measurement of that main.

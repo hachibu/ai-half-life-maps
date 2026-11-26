@@ -36,7 +36,8 @@ Console: `map prairieloop`
 ## Layout notes for agents
 - Ground `z = 0`; basements and tunnels floor `-176`; the hall floor `-464`; roofs `144`.
 - Loop road between the park `(+-896, +-448)` and `(+-1152, +-704)`; houses at `y = +-1056`; west street to `x = -3072`.
-- `tests/routes.py` lists every route that must stay walkable.
+- `routes.go` lists every route that must stay walkable; `views.go` the preview shots. The street plan
+  (houses, garages) is in `layout/`, shared with the walkthrough video in `video/`.
 
 ## Build it
 

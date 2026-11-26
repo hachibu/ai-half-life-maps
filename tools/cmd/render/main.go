@@ -3,13 +3,11 @@
 //	render views BSP ASSET_ROOT VIEWS.json OUTDIR
 //	    VIEWS.json = [[name, [x,y,z] eye, [x,y,z] target], ...]; renders every view concurrently and writes
 //	    OUTDIR/<name>.png plus OUTDIR/_sheet.png (half-size tiles, 3 per row)
-//	render serve BSP ASSET_ROOT
-//	    frame server for scripts (tools/mapkit/render.py): prints one JSON line of model info, then answers
-//	    JSON request lines: {"frame": {...}} -> W*H*3 raw RGB bytes, {"solid": [x,y,z]} -> one byte (0/1)
+//
+// Videos use package renderer directly (see maps/prairieloop/video).
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,7 +17,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"sync"
 
 	"halflifemaps/tools/renderer"
@@ -33,7 +30,7 @@ const (
 
 func main() {
 	if len(os.Args) < 4 {
-		fmt.Fprintln(os.Stderr, "usage: render views BSP ASSET_ROOT VIEWS.json OUTDIR | render serve BSP ASSET_ROOT")
+		fmt.Fprintln(os.Stderr, "usage: render views BSP ASSET_ROOT VIEWS.json OUTDIR")
 		os.Exit(2)
 	}
 	r, err := renderer.New(os.Args[2], os.Args[3])
@@ -48,8 +45,6 @@ func main() {
 			os.Exit(2)
 		}
 		err = views(r, os.Args[4], os.Args[5])
-	case "serve":
-		err = serve(r)
 	default:
 		err = fmt.Errorf("%w %q", errUnknownCommand, os.Args[1])
 	}
@@ -62,7 +57,6 @@ func main() {
 var (
 	errUnknownCommand = errors.New("unknown command")
 	errBadView        = errors.New("view must be [name, eye, target]")
-	errBadRequest     = errors.New(`request needs "frame" or "solid"`)
 )
 
 type view struct {
@@ -164,79 +158,4 @@ func sheet(imgs []*image.RGBA) *image.RGBA {
 		}
 	}
 	return out
-}
-
-type frameReq struct {
-	Eye    [3]float64             `json:"eye"`
-	Target [3]float64             `json:"target"`
-	T      float64                `json:"t"`
-	W      int                    `json:"w"`
-	H      int                    `json:"h"`
-	FOV    float64                `json:"fov"`
-	Dyn    map[string][12]float64 `json:"dyn"` // model index -> 9 rotation values (row-major) + 3 translation
-}
-
-type request struct {
-	Frame *frameReq   `json:"frame"`
-	Solid *[3]float64 `json:"solid"`
-}
-
-func serve(r *renderer.Renderer) error {
-	out := bufio.NewWriterSize(os.Stdout, 1<<20)
-	models := map[string]map[string]string{}
-	origins := map[string][3]float64{}
-	for mi, kv := range r.MInfo {
-		models[strconv.Itoa(mi)] = kv
-	}
-	for mi, o := range r.MOrigin {
-		origins[strconv.Itoa(mi)] = o
-	}
-	info := map[string]any{"models": models, "origins": origins}
-	b, err := json.Marshal(info)
-	if err != nil {
-		return err
-	}
-	if _, err := out.Write(append(b, '\n')); err != nil {
-		return err
-	}
-	if err := out.Flush(); err != nil {
-		return err
-	}
-	in := bufio.NewScanner(os.Stdin)
-	in.Buffer(make([]byte, 1<<20), 1<<24)
-	for in.Scan() {
-		var req request
-		if err := json.Unmarshal(in.Bytes(), &req); err != nil {
-			return fmt.Errorf("bad request: %w", err)
-		}
-		switch {
-		case req.Frame != nil:
-			fr := req.Frame
-			dyn := map[int]renderer.Transform{}
-			for k, v := range fr.Dyn {
-				mi, err := strconv.Atoi(k)
-				if err != nil {
-					return fmt.Errorf("dyn key %q: %w", k, err)
-				}
-				dyn[mi] = renderer.Transform{R: [3][3]float64{{v[0], v[1], v[2]}, {v[3], v[4], v[5]}, {v[6], v[7], v[8]}}, T: [3]float64{v[9], v[10], v[11]}}
-			}
-			if _, err := out.Write(r.Frame(fr.Eye, fr.Target, fr.T, fr.W, fr.H, fr.FOV, dyn)); err != nil {
-				return err
-			}
-		case req.Solid != nil:
-			v := byte(0)
-			if r.Solid(*req.Solid) {
-				v = 1
-			}
-			if err := out.WriteByte(v); err != nil {
-				return err
-			}
-		default:
-			return errBadRequest
-		}
-		if err := out.Flush(); err != nil {
-			return err
-		}
-	}
-	return in.Err()
 }

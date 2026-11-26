@@ -20,8 +20,8 @@ and what moves or reacts. For tools-only changes, write "Nothing in game" and ex
 <!-- CI posts before/after screenshots as a comment on this pull request a few minutes after each push
 (before = main, after = this branch; changed views are shown first).
 
-Every change a player can see needs at least one shot aimed at it. Add a view to your zone's VIEWS
-(or maps/<map>/tests/views.py) named for what it shows, e.g. ("pond_from_bridge", eye, target).
+Every change a player can see needs at least one shot aimed at it. Add a view to your zone's Views
+(or the map's views.go) named for what it shows, e.g. {Name: "pond_from_bridge", Eye: ..., Target: ...}.
 Run `make views MAP=<map>` and look at each image yourself before pushing: nothing black, no missing
 textures, camera not inside a wall.
 
@@ -48,7 +48,7 @@ paste here
 ```
 
 - [ ] `make test` passes locally and CI is green
-- [ ] every new walkable area has a route in `ROUTES`
+- [ ] every new walkable area has a route (the zone's `Routes` or the map's `routes.go`)
 - [ ] every visible change has a named view, listed under Screenshots, and I looked at the images
 - [ ] only original art, names and sounds
 
