@@ -80,7 +80,7 @@ def main():
     other = [dict(number=2, agent="codex", paths=["maps/prairieloop/zones/park.py"])]
     check(G.gate_claim(t, other, {"claude": 1}).state == G.FAIL, "overlapping earlier claim fails")
     check(G.gate_claim(t, [dict(number=2, agent="codex", paths=["maps/cagematch/"])], {"claude": 1}).state == G.OK, "disjoint claim passes")
-    check(G.gate_claim(t, [], {"claude": 3}).state == G.FAIL, "WIP limit enforced")
+    check(G.gate_claim(t, [], {"claude": 5}).state == G.OK, "human-assigned claims are not WIP-limited")
 
     tasks = {5: t}
     ok = G.gate_scope(pr(), "claude", files("maps/prairieloop/build.py", "docs/lessons/2026-x.md"), tasks, set())

@@ -57,7 +57,7 @@ def gate_spec(task, closed_numbers, existing_maps):
 
 
 def gate_claim(task, other_claims, claim_counts):
-    """ready -> claimed: one agent, no overlapping claimed paths, WIP limit."""
+    """ready -> claimed: one agent, no overlapping claimed paths (tasks a human assigns aren't WIP-limited)."""
     r = Result("claim")
     if len(task["claimed"]) > 1: r.fail("claimed by more than one agent: %s" % ", ".join(task["claimed"]))
     if not task["claimed"]:
@@ -67,9 +67,7 @@ def gate_claim(task, other_claims, claim_counts):
         hits = [(p, q) for p in task["paths"] for q in o["paths"] if M.path_overlap(p, q)]
         if hits:
             r.fail("paths overlap #%d (claimed earlier by %s): %s vs %s" % (o["number"], o["agent"], hits[0][0], hits[0][1]))
-    if claim_counts.get(a, 0) > WIP_LIMIT:
-        r.fail("%s already holds %d claims (limit %d)" % (a, claim_counts[a] - 1, WIP_LIMIT))
-    return r
+    return r                    # the WIP limit applies to self-chosen work only (tools.pipeline.next)
 
 
 # ================================================================== PR gates

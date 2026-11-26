@@ -16,7 +16,7 @@ idea ──spec──▶ ready ──claim──▶ claimed ──scope+descript
 | gate | where | passes when |
 |---|---|---|
 | spec | task issue | Map, Paths, Goal, Acceptance criteria filled; paths inside the repo; map exists (or `new:`); dependencies closed (else `blocked`) |
-| claim | task issue | one agent's `claimed:` label; no overlap with an earlier claim's paths; WIP ≤ 2 per agent; expires after 48 h without a PR |
+| claim | task issue | one agent's `claimed:` label; no overlap with an earlier claim's paths (`make next` also keeps self-chosen work to 2 per agent); expires after 48 h without a PR |
 | scope | PR | `Closes #task` claimed by the PR's agent (from the branch prefix); every file inside the task's paths (+ `docs/lessons/`); no build output; rule files need `human-approved` |
 | description | PR | every template section filled; map PRs name at least one view |
 | checks | PR | `map-check` green on the head commit: build, limits, placements, wiring, routes, **quality ratchet** (satisfaction + holdout vs main), **visual gate** (changed maps show a changed/new view; no blank shots) |
