@@ -163,8 +163,12 @@ def tier_side(seg, ribbon=None, zt=None):
         return "STANDS"
     return f
 
-def crowd_spec(seed, ztop):
-    return {"name": CROWDS[seed % 3], "su": 1.25, "sv": 1.25, "ov": ztop / 1.25, "ou": (seed * 37) % 128}
+def crowd_spec(seed, ztop, near=False):
+    """A crowd row's texture. Rows in the stands use the half-resolution CROWDF* at scale 2.5 (a quarter of the light
+    samples); `near` rows (the floor rows by the octagon) keep full resolution."""
+    if near:
+        return {"name": CROWDS[seed % 3], "su": 1.25, "sv": 1.25, "ov": ztop / 1.25, "ou": (seed * 37) % 128}
+    return {"name": "CROWDF%d" % (seed % 3 + 1), "su": 2.5, "sv": 2.5, "ov": ztop / 2.5, "ou": (seed * 37) % 128 / 2}
 
 def seg2_parts(poly, k):
     """Split a seg-2 polygon at the tunnel / room x-planes; returns [(poly, cavity_top or None)]."""
@@ -204,7 +208,7 @@ for seg in range(8):
             for cp, cav in cparts:
                 if cav is not None and h <= cav + 16: continue
                 sp = crowd_spec(k * 3 + seg + i, h + 40)
-                CROWD.append(prism(cp, h, h + 40, sp, top="CROWDTOP"))
+                CROWD.append(prism(cp, h, h + 40, sp, top="CROWDTOP", bottom="NULL"))
     if seg != 2:   # aisle steps up to the fascia-high first tier
         for j in range(3):
             W.append(prism(rq(A0 - 48 + 16 * j, A0 - 32 + 16 * j, seg, 0.46, 0.54), 0, 16 * (j + 1), "STANDS", top="SEATS"))
@@ -246,7 +250,7 @@ for seg in range(8):
         a0, a1 = UA0 + DEP * k, UA0 + DEP * (k + 1)
         W.append(prism(rq(a0, a1, seg), 0, uh(k), "STANDS", top="SEATS"))
         for i, (t0, t1) in enumerate(AISLES):
-            CROWD.append(prism(rq(a0 + 6, a0 + 42, seg, t0, t1), uh(k), uh(k) + 40, crowd_spec(k * 5 + seg + i + 1, uh(k) + 40), top="CROWDTOP"))
+            CROWD.append(prism(rq(a0 + 6, a0 + 42, seg, t0, t1), uh(k), uh(k) + 40, crowd_spec(k * 5 + seg + i + 1, uh(k) + 40), top="CROWDTOP", bottom="NULL"))
 UTOP = UA0 + DEP * UNT              # 2652
 SUITE_Z0, SUITE_Z1 = 900, 1020           # trim ledge must clear a player (72) on the top row (floor 800)
 for seg in range(8):
@@ -422,7 +426,7 @@ for seg in range(8):
             if seg == 2:
                 parts = [p for p in (clip2(cp, np.array([1.0, 0]), -80), clip2(cp, np.array([-1.0, 0]), -80)) if p]
             for p in parts:
-                CROWD.append(prism(p, 0, 40, crowd_spec(r + seg * 3 + i, 40), top="CROWDTOP"))
+                CROWD.append(prism(p, 0, 40, crowd_spec(r + seg * 3 + i, 40, near=True), top="CROWDTOP", bottom="NULL"))
 
 for part in chunks(CROWD, 384):        # the crowd: decoration only, no collision; in chunks so each has a small bbox
     bent("func_illusionary", part)

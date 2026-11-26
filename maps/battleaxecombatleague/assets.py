@@ -240,6 +240,11 @@ def person_row(width, seed, phones=0.04, signs=0.02):
 T["CROWD1"] = lambda: person_row(256, 1).resize((128, 32), Image.Resampling.LANCZOS)
 T["CROWD2"] = lambda: person_row(256, 2, phones=0.08).resize((128, 32), Image.Resampling.LANCZOS)
 T["CROWD3"] = lambda: person_row(256, 3, signs=0.06).resize((128, 32), Image.Resampling.LANCZOS)
+# The stands' crowd (CROWDF*): the same rows at half resolution, drawn at twice the scale in build.py, so they
+# cover the same area with a quarter of the light samples (lighting is most of the compile). Only the floor rows
+# next to the octagon, which players see up close, use the full-resolution CROWD*.
+for _i in (1, 2, 3):
+    T["CROWDF%d" % _i] = (lambda f: lambda: f().resize((64, 16), Image.Resampling.LANCZOS))(T["CROWD%d" % _i])
 
 
 def crowdtop():
@@ -409,7 +414,7 @@ def beam():
 T["LIGHTBEAM"] = beam
 
 EMISSIVE = {"RIBBON1": 200, "RIBBON2": 200, "RIBBON3": 200, "JUMBO1": 230, "JUMBO2": 230, "WALKOUT": 90,
-            "BROADCAST": 220, "LIGHTBANK": 255, "LAMP": 255, "LIGHTBEAM": 255, "CORNER_R": 170, "CORNER_B": 170,
+            "BROADCAST": 220, "LIGHTBANK": 255, "LAMP": 255, "CORNER_R": 170, "CORNER_B": 170,
             "REDSTRIP": 255, "BLUESTRIP": 255, "SUITES": 105, "AXELOGO": 200}
 
 
