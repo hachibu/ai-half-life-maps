@@ -32,8 +32,10 @@ jobs:
         with:
           go-version: "1.24"
           cache-dependency-path: go.mod
+      - name: Python requirements (map scripts and tools/mapkit, which the README check and the map picker run)
+        run: pip install -q -r requirements.txt
       - name: READMEs up to date (map view names come from each map's views.py)
-        run: go run ./tools/ci/ci readme --check
+        run: go run ./tools/cmd/ci readme --check
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
@@ -50,14 +52,28 @@ jobs:
           MAPCHANGED=$(echo "$CHANGED" | grep -vE '^maps/[^/]+/(README\.md|map\.toml|video/.*)$' || true)   # docs, metadata and video scripts don't change a map
           echo "$CHANGED"
           exists() { while read -r m; do [ -n "$m" ] && [ -d "maps/$m" ] && echo "$m"; done; }   # deleted maps aren't built
-          echo "direct=$(echo "$MAPCHANGED" | grep -oE '^maps/[^_/][^/]*/' | cut -d/ -f2 | sort -u | exists | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+          # Maps whose own files changed. A change that leaves the generated map byte-identical (a refactor, a
+          # comment) is no change: CI generates the map from both this PR and main and drops it if they match, so
+          # it needs no new screenshot and isn't compiled.
+          git worktree add -q /tmp/base "origin/${{ github.base_ref }}"
+          BUILD=""; DIRECT=""
+          for m in $(echo "$MAPCHANGED" | grep -oE '^maps/[^/]+/' | cut -d/ -f2 | sort -u | exists); do
+            if [ -d "/tmp/base/maps/$m" ] && python "maps/$m/build.py" > /dev/null && (cd /tmp/base && python "maps/$m/build.py" > /dev/null) \
+               && diff -rq "build/$m" "/tmp/base/build/$m" > /dev/null; then
+              echo "$m: generated map is identical to main's, so nothing to show or build"
+            else
+              BUILD="$BUILD $m"
+              case "$m" in _*) ;; *) DIRECT="$DIRECT $m" ;; esac   # the visual gate skips _template
+            fi
+          done
+          echo "direct=$DIRECT" >> "$GITHUB_OUTPUT"
           # Rebuild every map only when something that builds or checks maps changed. Docs, the pipeline,
           # the README generator and the other workflows can't change a map, so they build nothing.
           # (main is still rebuilt in full by the release workflow after every merge.)
-          if echo "$CHANGED" | grep -qE '^(go\.mod$|tools/(bsp|assets|checks|render|ci)/|tools/(package|mapkit|paths)\.py$|Makefile$|requirements\.txt$|\.github/workflows/map-check\.yml$)'; then
+          if echo "$CHANGED" | grep -qE '^(go\.mod$|tools/|Makefile$|requirements\.txt$|\.github/workflows/map-check\.yml$)'; then
             echo "maps=$ALL" >> "$GITHUB_OUTPUT"
           else
-            M=$(echo "$MAPCHANGED" | grep -oE '^maps/[^/]+' | cut -d/ -f2 | sort -u | exists | jq -R . | jq -cs '[.[] | select(length > 0)]')
+            M=$(for m in $BUILD; do echo "$m"; done | jq -R . | jq -cs '[.[] | select(length > 0)]')
             echo "maps=$M" >> "$GITHUB_OUTPUT"
           fi
 
@@ -106,11 +122,11 @@ jobs:
         with:
           go-version: "1.24"
           cache-dependency-path: go.mod
-      - name: Cache SDHLT (the map compiler, built from tools/bsp/sdhlt.rev)
+      - name: Cache SDHLT (the map compiler, built from tools/sdhlt.rev)
         uses: actions/cache@v4
         with:
           path: build/sdhlt
-          key: sdhlt-${{ runner.os }}-${{ hashFiles('tools/bsp/sdhlt.rev') }}
+          key: sdhlt-${{ runner.os }}-${{ hashFiles('tools/sdhlt.rev') }}
       - name: Build ${{ matrix.map }}
         run: make build MAP=${{ matrix.map }}
       - name: Test ${{ matrix.map }}
@@ -141,8 +157,8 @@ jobs:
         with:
           go-version: "1.24"
           cache-dependency-path: go.mod
-      - name: Build the CI helpers (tools/ci/ci)
-        run: go build -o build/bin/ci ./tools/ci/ci
+      - name: Build the CI helpers (tools/cmd/ci)
+        run: go build -o build/bin/ci ./tools/cmd/ci
       - uses: actions/download-artifact@v4
         with:
           path: artifacts

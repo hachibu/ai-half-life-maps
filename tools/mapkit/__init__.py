@@ -21,8 +21,8 @@ import importlib.util
 import struct
 from pathlib import Path
 
-from tools.assets import library as L
-from tools.paths import build_dir
+from tools.mapkit import textures as L
+from tools.mapkit.paths import build_dir
 
 
 def load_zones(map_dir):
@@ -39,7 +39,7 @@ def load_zones(map_dir):
 
 
 class Ctx:
-    """What a zone's build(ctx) uses. Brush text is Valve 220 (see tools/assets + existing maps for helpers)."""
+    """What a zone's build(ctx) uses. Brush text is Valve 220 (see tools/mapkit/textures.py + existing maps for helpers)."""
 
     def __init__(self, zone):
         self.zone = zone

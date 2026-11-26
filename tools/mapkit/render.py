@@ -1,4 +1,4 @@
-"""Python client for the Go renderer's frame server (build/bin/render serve; `make bspc` builds it).
+"""Python client for the Go renderer's frame server (build/bin/render serve; `make tools` builds it).
 
 Scripts that make videos keep their camera paths and overlays in Python and get frames from Go:
 
@@ -19,7 +19,7 @@ RENDER = Path(__file__).resolve().parents[2] / "build" / "bin" / "render"
 class Renderer:
     def __init__(self, bsp, asset_root):
         if not RENDER.exists():
-            raise SystemExit("build/bin/render is missing: run `make bspc` first")
+            raise SystemExit("build/bin/render is missing: run `make tools` first")
         self.p = subprocess.Popen([str(RENDER), "serve", str(bsp), str(asset_root)],
                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         info = json.loads(self.p.stdout.readline())

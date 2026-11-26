@@ -1,6 +1,6 @@
 """Print a map's preview shots as JSON for the Go renderer (`make views` feeds this to build/bin/render).
 
-    python -m tools.render.views MAP        ->  [[name, [x, y, z] eye, [x, y, z] target], ...]
+    python -m tools.mapkit.views MAP        ->  [[name, [x, y, z] eye, [x, y, z] target], ...]
 
 The shots themselves live with the map: VIEWS = [(name, eye, target), ...] in maps/<MAP>/tests/views.py.
 """
@@ -8,7 +8,7 @@ import importlib.util
 import json
 import sys
 
-from tools.paths import REPO
+from tools.mapkit.paths import REPO
 
 
 def views(name):

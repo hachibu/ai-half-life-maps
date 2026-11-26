@@ -63,7 +63,7 @@ func mapViewNames(root, name string) ([]string, error) {
 	if py == "" {
 		py = "python3"
 	}
-	cmd := exec.Command(py, "-m", "tools.render.views", name) //nolint:gosec // the interpreter the Makefile uses
+	cmd := exec.Command(py, "-m", "tools.mapkit.views", name) //nolint:gosec // the interpreter the Makefile uses
 	cmd.Dir = root
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()

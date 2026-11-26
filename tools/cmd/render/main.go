@@ -4,7 +4,7 @@
 //	    VIEWS.json = [[name, [x,y,z] eye, [x,y,z] target], ...]; renders every view concurrently and writes
 //	    OUTDIR/<name>.png plus OUTDIR/_sheet.png (half-size tiles, 3 per row)
 //	render serve BSP ASSET_ROOT
-//	    frame server for scripts (tools/render/client.py): prints one JSON line of model info, then answers
+//	    frame server for scripts (tools/mapkit/render.py): prints one JSON line of model info, then answers
 //	    JSON request lines: {"frame": {...}} -> W*H*3 raw RGB bytes, {"solid": [x,y,z]} -> one byte (0/1)
 package main
 
@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"sync"
 
-	"halflifemaps/tools/render/renderer"
+	"halflifemaps/tools/renderer"
 )
 
 const (

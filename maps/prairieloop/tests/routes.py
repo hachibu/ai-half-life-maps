@@ -2,7 +2,7 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from tools.checks.walk import run
+from tools.mapkit.routes import run
 
 
 def N(cx, x, y): return (cx + x, 1056 + y)          # north-row house: local -> world

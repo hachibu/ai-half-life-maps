@@ -38,7 +38,7 @@ The repo is laid out so that two agent sessions almost never edit the same file:
 - **No central lists.** Maps are discovered from `maps/*/`, zones from `maps/<map>/zones/*.py`, routes and
   views from each zone. Adding a map or a zone never edits a shared file. Don't add hand-maintained lists
   (no map index in the README, no CHANGELOG): release notes come from pull request titles.
-- **Work in zones.** A map built with `tools/mapkit.py` is a folder of zone files. Each zone declares its
+- **Work in zones.** A map built with `tools/mapkit` is a folder of zone files. Each zone declares its
   `BOUNDS` (the space it may build in), its own `TEXTURES`, `ROUTES` and `VIEWS`. Take a zone, not a map.
   New zone = new file. The build fails if two zones overlap or define the same texture or targetname.
 - **Prefix names with the zone.** Textures `HALL_CARPET`, targetnames via `ctx.name("door")` -> `hall_door`.
@@ -53,18 +53,23 @@ The repo is laid out so that two agent sessions almost never edit the same file:
 ## Layout
 
 ```
-tools/bsp/sdhlt.rev         the SDHLT commit `make build` compiles maps with (hlcsg/hlbsp/hlvis/hlrad); output pinned by `tools/bsp/bspfile/           Go BSP reader shared by the checks and the renderer (limits, consistency, hulls)
-tools/checks/mapcheck/      `make test`: structure (engine limits), placements, wiring, walk routes (Go)
-tools/checks/walker/        the route walker (Go): 18-unit steps, free drops; walk.py hands it each map's ROUTES
-tools/render/renderer/      the preview + video renderer (Go; views render concurrently)
-tools/render/render/        `make views` and the frame server videos use (client.py drives it from Python)
-tools/bsp/bspinfo/          `bspinfo lightbudget MAP.bsp`: light samples per texture
-tools/assets/library.py     texture helpers, base textures, WAD writer
-tools/assets/skyfire.py     skybox faces (TGA) + fire sprite
-tools/ci/ci/                `ci`, the CI helpers (Go): package (valve/ layout, .res, zip), previews (screenshots,
-                            PR comment, visual gate), readme (generated README sections)
+tools/sdhlt.rev             the SDHLT commit `make build` compiles maps with (hlcsg/hlbsp/hlvis/hlrad)
+tools/mapkit/               Python, what map scripts import:
+  __init__.py               zone assembly (build_map), split_detail (func_detail), chunks, texlights (glowing textures)
+  textures.py               shared textures + noise/colour helpers + WAD writer
+  sky.py                    skybox face helpers + fire sprite
+  routes.py, views.py       hand a map's ROUTES / VIEWS to the Go tools
+  render.py                 drives the Go renderer from Python (the walkthrough video)
+  paths.py, fonts/          repo paths; the only fonts textures may use
+tools/cmd/mapcheck/         `make test`: structure (engine limits), placements, wiring, walk routes;
+                            `mapcheck lightbudget MAP.bsp`: light samples per texture
+tools/cmd/render/           `make views` (views render concurrently) and the frame server videos use
+tools/cmd/ci/               CI helpers: package (valve/ layout, .res, zip), previews (screenshots, PR comment, visual
+                            gate), readme (generated README sections)
+tools/bspfile/              Go: reads a compiled .bsp (limits, consistency, hulls); used by the checks and renderer
+tools/walker/               Go: the route walker (18-unit steps, free drops)
+tools/renderer/             Go: the preview + video renderer
 docs/lessons/               the knowledge base: one lesson per file; read the ones tagged for your task
-tools/mapkit.py             zone-based map assembly (conflict-free multi-agent maps)
 maps/<name>/build.py        generates build/<name>/<name>.map + .wad + valve/ assets (sky, sprites, sounds)
 maps/<name>/zones/*.py      zones (maps built with mapkit); files starting with _ are shared helpers
 maps/<name>/assets.py       that map's own textures/sprites/sounds (when it has them)
@@ -102,7 +107,7 @@ Each of these cost real time once; the lesson files have the details.
   (`--force-with-lease=<branch>:<sha you expect>`).
 - **PRs and releases compile what players get: full VIS and full lighting.** `make build` runs both;
   `LIGHT=quick VIS=fast` is a draft mode for iterating locally. Full VIS stays fast only because the maps put
-  small brushes in `func_detail` (`split_detail` in tools/mapkit.py: anything without two sides >= 256 units).
+  small brushes in `func_detail` (`split_detail` in tools/mapkit: anything without two sides >= 256 units).
   Build big walls, floors and roofs as single brushes so they stay structural; a structural brush made of many
   small pieces slows VIS, and a detail brush can't seal the map (hlbsp reports a leak).
 - **Glowing textures go in the map's EMISSIVE table.** `texlights()` turns it into SDHLT's `info_texlights`
@@ -152,7 +157,7 @@ anything. The placement check verifies both.
 on a silent process; if something stalls, stop it and find out why.
 
 **Content.** Only original artwork, names, text and sounds. No real brands, logos, copyrighted characters,
-or crests/flags/religious symbols used as faction emblems. Fonts: only the ones in `tools/assets/fonts/`
+or crests/flags/religious symbols used as faction emblems. Fonts: only the ones in `tools/mapkit/fonts/`
 (licenses included there).
 
 **Don't commit `build/` or screenshots.** CI produces the zips, previews and videos. Screenshots live on the

@@ -1,8 +1,8 @@
 """Repository paths shared by every tool and map."""
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
-FONTS = REPO / "tools" / "assets" / "fonts"
+REPO = Path(__file__).resolve().parents[2]
+FONTS = Path(__file__).resolve().parent / "fonts"
 FONT_BOLD = str(FONTS / "Poppins-Bold.ttf")
 FONT_MONO = str(FONTS / "DejaVuSansMono.ttf")
 

@@ -2,8 +2,8 @@
 import math, struct, os, sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
-from tools.assets.library import noise, colorize, img, font, FB, MONO, siding_f, planks, T as JT
-from tools.assets import skyfire
+from tools.mapkit.textures import noise, colorize, img, font, FB, MONO, siding_f, planks, T as JT
+from tools.mapkit import sky
 
 rng = np.random.default_rng(2026)
 T = {}
@@ -309,8 +309,8 @@ def write_skybox(prefix, N=256):
     for f in ("rt", "bk", "lf", "ft", "up", "dn"):
         j, i = np.mgrid[0:N, 0:N]
         s = (i + 0.5) / N * 2 - 1; t = 1 - (j + 0.5) / N * 2
-        col = storm_sky(skyfire.face_dirs(f, s, t))
-        skyfire.write_tga(f"{prefix}{f}.tga", np.clip(col, 0, 255).astype(np.uint8))
+        col = storm_sky(sky.face_dirs(f, s, t))
+        sky.write_tga(f"{prefix}{f}.tga", np.clip(col, 0, 255).astype(np.uint8))
 
 # ------------------------------------------------------------------ snow sprites
 def write_spr(path, frames, pal, sprtype=0, texfmt=1):

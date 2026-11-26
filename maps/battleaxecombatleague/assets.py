@@ -7,7 +7,7 @@ import struct
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-from tools.assets.library import noise, colorize, img, font, FB, MONO, rng, T as JT
+from tools.mapkit.textures import noise, colorize, img, font, FB, MONO, rng, T as JT
 
 T = {}
 for k in ("CONCRETE", "METAL", "TRIM", "LAMP", "TABLE", "TVBLACK", "CEILTILE", "STEP", "AAATRIGGER"):

@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"strings"
 
-	"halflifemaps/tools/bsp/bspfile"
+	"halflifemaps/tools/bspfile"
 )
 
 // dot = numpy 1-D a @ b and the rows of A @ M (gemm): fma(a2,b2, fma(a1,b1, a0*b0)).
