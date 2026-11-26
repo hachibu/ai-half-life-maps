@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))     # repo root, for tools.*
 sys.path.insert(0, str(Path(__file__).resolve().parent))         # this map's own modules
 from tools.paths import build_dir
+from tools.mapkit import chunks, detail_entity, split_detail, texlights
 import math, os, sys, json
 import numpy as np
 from scipy.spatial import ConvexHull
@@ -323,10 +324,15 @@ for y in (1000, 1200, 1400):
 CA, FA, PA = 300, 304, 340        # canvas, fence, platform apothems
 PZ = 36
 W.append(prism(octv(CA), 0, PZ, "APRON", top=fit("CANVAS", (0, 0, 1), -307, 307, 0, 1) | {"su": 2.4, "sv": 2.4, "ou": 128, "ov": 128}))
-APRON_SIDE = {"name": "APRONSIDE", "su": 1, "sv": PZ / 64, "ov": PZ / (PZ / 64)}
+def apron_side(n2, seg):
+    """The apron banner fitted to exactly one octagon side, so it never wraps mid-word (it used to read "Batt|tleAxe")."""
+    n3 = (float(n2[0]), float(n2[1]), 0.0)
+    u, _ = axes(np.array(n3))
+    us = [np.array([*onoct(PA, seg, t), 0.0]) @ u for t in (0.0, 1.0)]
+    return fit("APRONSIDE", n3, min(us), max(us), 0, PZ)
 for seg in range(8):
     W.append(prism(rq(CA, PA - 6, seg), 0, PZ, "APRON"))
-    W.append(prism(rq(PA - 6, PA, seg), 0, PZ, lambda n2, seg=seg: APRON_SIDE if n2 @ segn(seg) > 0.99 else "APRON",
+    W.append(prism(rq(PA - 6, PA, seg), 0, PZ, lambda n2, seg=seg: apron_side(n2, seg) if n2 @ segn(seg) > 0.99 else "APRON",
                    top="REDSTRIP"))
 fence, rail = [], []
 for seg in range(8):
@@ -358,7 +364,8 @@ for (x, y) in lamps:
     top = [(x + dx, y + dy, TZ - 18) for dx in (-10, 10) for dy in (-10, 10)]
     bot = [(tx + dx, ty + dy, PZ + 2) for dx in (-46, 46) for dy in (-46, 46)]
     beams.append(hull_brush(top + bot, "LIGHTBEAM"))
-bent("func_illusionary", beams, rendermode=5, renderamt=28)
+for part in chunks(beams, 256):
+    bent("func_illusionary", part, rendermode=5, renderamt=28)
 light(0, 0, TZ - 60, (255, 255, 255), 700)
 JZ0, JZ1 = 700, 860
 W.append(box(-128, -128, JZ0, 128, 128, JZ1, "METAL", n=fit("JUMBO2", (0, 1, 0), -128, 128, JZ0, JZ1),
@@ -417,7 +424,8 @@ for seg in range(8):
             for p in parts:
                 CROWD.append(prism(p, 0, 40, crowd_spec(r + seg * 3 + i, 40), top="CROWDTOP"))
 
-bent("func_illusionary", CROWD)   # the crowd: decoration only, no collision
+for part in chunks(CROWD, 384):        # the crowd: decoration only, no collision; in chunks so each has a small bbox
+    bent("func_illusionary", part)
 
 # ------------------------------------------------------------------ pyro + general lights
 FIRE = "sprites/battleaxecombatleague_fire.spr"
@@ -469,12 +477,13 @@ for cls, x, y, z in ITEMS:
     point(cls, round(x, 1), round(y, 1), z, angles="0 %d 0" % (int(abs(x * 3 + y)) % 8 * 45))
 point("ambient_generic", 0, 0, 400, message="ambience/crowd1.wav", health=10, spawnflags=1)
 
+STRUCT, DETAIL = split_detail(W)    # small brushes -> func_detail, so full VIS stays fast
 world = ('{\n"classname" "worldspawn"\n"mapversion" "220"\n"wad" "battleaxecombatleague.wad"\n'
-         '"message" "BattleAxe Combat League - Fight Night"\n"_emissive" "%s"\n' %
-         ",".join("%s:%d" % kv for kv in fn_textures.EMISSIVE.items()) + "".join(W) + "}\n")
+         '"message" "BattleAxe Combat League - Fight Night"\n' + "".join(STRUCT) + "}\n")
 with open(os.path.join(OUT, "battleaxecombatleague.map"), "w", newline="\r\n") as f:
-    f.write(world + "".join(BENTS) + "".join(ENTS))
+    f.write(world + detail_entity(DETAIL) + "".join(BENTS) + "".join(ENTS)
+            + texlights(os.path.join(OUT, "battleaxecombatleague.wad"), fn_textures.EMISSIVE))
 VALVE = os.path.join(OUT, "valve")
 os.makedirs(os.path.join(VALVE, "gfx", "env"), exist_ok=True); os.makedirs(os.path.join(VALVE, "sprites"), exist_ok=True)
 skyfire.write_sprite(os.path.join(VALVE, "sprites", "battleaxecombatleague_fire.spr"))
-print("world brushes", len(W), "brush ents", len(BENTS), "items", len(ITEMS), "spawns", len(SPAWNS), "point ents", len(ENTS))
+print("world brushes", len(STRUCT), "detail", len(DETAIL), "brush ents", len(BENTS), "items", len(ITEMS), "spawns", len(SPAWNS), "point ents", len(ENTS))

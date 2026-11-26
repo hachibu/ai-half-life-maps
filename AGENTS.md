@@ -136,10 +136,13 @@ Each of these cost real time once; the lesson files have the details.
   operation order matters (a reordered sum or a fused multiply-add changes last bits). If the output changes on
   purpose (a new SDHLT commit, a scorer change), run `make golden-update`, commit it, and say in the PR why and
   how you checked the maps.
-- **Pull requests build with quick lighting; releases with full lighting.** `make build` runs hlrad with
-  `-fast -bounce 2` (seconds); `LIGHT=full` is the slow, nicer version that releases ship. Screenshots in a PR
-  compare quick against quick. VIS is always `-fast`: full VIS on prairieloop takes most of an hour.
-  When porting numeric code, measure each primitive against the original first (docs/lessons).
+- **PRs and releases compile what players get: full VIS and full lighting.** `make build` runs both;
+  `LIGHT=quick VIS=fast` is a draft mode for iterating locally. Full VIS stays fast only because the maps put
+  small brushes in `func_detail` (`split_detail` in tools/mapkit.py: anything without two sides >= 256 units).
+  Build big walls, floors and roofs as single brushes so they stay structural; a structural brush made of many
+  small pieces slows VIS, and a detail brush can't seal the map (hlbsp reports a leak).
+- **Glowing textures go in the map's EMISSIVE table.** `texlights()` turns it into SDHLT's `info_texlights`
+  entity, so lamps, screens and signs light the room in their own colour.
 - **Prefer comparing to existing artifacts over re-running slow reference code.** A BSP built earlier from the
   same inputs is as good a reference as a fresh 9-minute Python compile.
 - **Merges trigger releases in merge order.** Two PRs merging close together release in the order they

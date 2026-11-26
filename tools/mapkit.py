@@ -140,3 +140,97 @@ def zone_routes(map_dir):
 
 def zone_views(map_dir):
     return [v for z in load_zones(map_dir) for v in getattr(z, "VIEWS", [])]
+
+
+# ------------------------------------------------------------------ compiler-friendly output (SDHLT)
+# Shared by the hand-written maps (battleaxecombatleague, prairieloop): they build lists of brush text and call
+# these just before writing the .map.
+
+def brush_bbox(text):
+    """Bounding box (mins, maxs) of one brush, from its plane lines ("( x y z ) ( x y z ) ( x y z ) TEX ...")."""
+    import itertools
+    import re
+    import numpy as np
+    planes = []
+    for line in text.splitlines():
+        m = re.match(r"\s*\(([^)]*)\)\s*\(([^)]*)\)\s*\(([^)]*)\)", line)
+        if not m:
+            continue
+        p0, p1, p2 = (np.array([float(v) for v in g.split()]) for g in m.groups())
+        n = np.cross(p0 - p1, p2 - p1)
+        n /= np.linalg.norm(n)
+        planes.append((n, n @ p1))
+    pts = []
+    for (a, da), (b, db), (c, dc) in itertools.combinations(planes, 3):
+        A = np.array([a, b, c])
+        if abs(np.linalg.det(A)) < 1e-6:
+            continue
+        p = np.linalg.solve(A, [da, db, dc])
+        if all(n @ p <= d + 0.01 for n, d in planes):
+            pts.append(p)
+    pts = np.array(pts)
+    return pts.min(axis=0), pts.max(axis=0)
+
+
+def split_detail(brushes, span=256):
+    """Split world brushes into (structural, detail).
+
+    Structural brushes are wall-, floor- and roof-sized: at least two of their three extents are >= span. They seal
+    the map and cut it into the spaces VIS reasons about. Everything smaller (steps, seats, trim, props, lamps)
+    is detail: still solid, still lit and casting shadows, but VIS ignores it, which is what keeps full VIS fast.
+    A detail brush can't seal the map: if one was needed, hlbsp reports a leak and the build fails.
+    """
+    structural, detail = [], []
+    for b in brushes:
+        mn, mx = brush_bbox(b)
+        (structural if sum(e >= span for e in mx - mn) >= 2 else detail).append(b)
+    return structural, detail
+
+
+def detail_entity(brushes):
+    """One func_detail entity holding the given brushes (empty string if there are none)."""
+    if not brushes:
+        return ""
+    return '{\n"classname" "func_detail"\n"zhlt_detaillevel" "1"\n' + "".join(brushes) + "}\n"
+
+
+def chunks(brushes, cell=1024):
+    """Group brushes by the cell-sized XY square their centre falls in, so one big decorative entity becomes
+    several small ones (the engine checks a brush entity's visibility by its bounding box)."""
+    groups = {}
+    for b in brushes:
+        mn, mx = brush_bbox(b)
+        c = (mn + mx) / 2
+        groups.setdefault((int(c[0] // cell), int(c[1] // cell)), []).append(b)
+    return [groups[k] for k in sorted(groups)]
+
+
+def texlights(wad_path, emissive, scale=2.0):
+    """info_texlights entity: each texture in `emissive` (name -> 0..255 glow) emits light in its own average
+    colour, brightness glow * scale. Colours come from the texture's pixels in the map's .wad."""
+    data = Path(wad_path).read_bytes()
+    num, ofs = struct.unpack_from("<4xii", data, 0)
+    avg = {}
+    for i in range(num):
+        pos, _disk, _size, _typ = struct.unpack_from("<iiib", data, ofs + 32 * i)
+        name = data[ofs + 32 * i + 16: ofs + 32 * i + 32].split(b"\0")[0].decode("latin-1").upper()
+        if name not in {k.upper() for k in emissive}:
+            continue
+        w, h = struct.unpack_from("<ii", data, pos + 16)
+        off0 = struct.unpack_from("<i", data, pos + 24)[0]
+        pal_at = pos + 40 + w * h * 85 // 64 + 2
+        pal = data[pal_at: pal_at + 768]
+        px = data[pos + off0: pos + off0 + w * h]
+        tot = [0, 0, 0]
+        for p in px:
+            for c in range(3):
+                tot[c] += pal[3 * p + c]
+        avg[name] = [t / len(px) for t in tot]
+    lines = []
+    for name, glow in emissive.items():
+        rgb = avg.get(name.upper())
+        if rgb is None:
+            continue
+        top = max(rgb) or 1
+        lines.append('"%s" "%d %d %d %d"\n' % (name, *(round(255 * c / top) for c in rgb), round(glow * scale)))
+    return '{\n"classname" "info_texlights"\n' + "".join(lines) + "}\n" if lines else ""
