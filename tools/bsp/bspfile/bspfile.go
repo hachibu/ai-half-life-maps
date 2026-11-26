@@ -5,6 +5,7 @@ package bspfile
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -180,17 +181,24 @@ func Load(path string) (*BSP, error) {
 	return Parse(data)
 }
 
+// Errors Parse returns (wrapped with the lump number where one applies).
+var (
+	ErrNotBSP30   = errors.New("not a BSP v30 file")
+	ErrLumpRange  = errors.New("out of range of the file")
+	ErrLumpLength = errors.New("length is not a multiple of its record size")
+)
+
 // Parse decodes a BSP v30 file held in memory and runs the consistency checks.
 func Parse(data []byte) (*BSP, error) {
 	le := binary.LittleEndian
 	if len(data) < 124 || s32(data) != 30 {
-		return nil, fmt.Errorf("not a BSP v30 file")
+		return nil, ErrNotBSP30
 	}
 	lump := func(i int) ([]byte, error) {
 		o := int(s32(data[4+8*i:]))
 		n := int(s32(data[8+8*i:]))
 		if o < 0 || n < 0 || o+n > len(data) {
-			return nil, fmt.Errorf("lump %d out of range", i)
+			return nil, fmt.Errorf("lump %d: %w", i, ErrLumpRange)
 		}
 		return data[o : o+n], nil
 	}
@@ -200,7 +208,7 @@ func Parse(data []byte) (*BSP, error) {
 			return nil, 0, err
 		}
 		if len(b)%size != 0 {
-			return nil, 0, fmt.Errorf("lump %d: %d bytes is not a multiple of %d", i, len(b), size)
+			return nil, 0, fmt.Errorf("lump %d: %w (%d bytes, records of %d)", i, ErrLumpLength, len(b), size)
 		}
 		return b, len(b) / size, nil
 	}
@@ -212,21 +220,21 @@ func Parse(data []byte) (*BSP, error) {
 	if err != nil {
 		return nil, err
 	}
-	for k := 0; k < n; k++ {
+	for k := range n {
 		r := b[20*k:]
 		m.Planes = append(m.Planes, Plane{[3]float64{float64(f32(r)), float64(f32(r[4:])), float64(f32(r[8:]))}, float64(f32(r[12:])), i32(r[16:])})
 	}
 	if b, n, err = recs(3, 12); err != nil {
 		return nil, err
 	}
-	for k := 0; k < n; k++ {
+	for k := range n {
 		r := b[12*k:]
 		m.Verts = append(m.Verts, [3]float32{f32(r), f32(r[4:]), f32(r[8:])})
 	}
 	if b, n, err = recs(5, 24); err != nil {
 		return nil, err
 	}
-	for k := 0; k < n; k++ {
+	for k := range n {
 		r := b[24*k:]
 		m.Nodes = append(m.Nodes, Node{i32(r), [2]int16{i16(r[4:]), i16(r[6:])},
 			[3]int16{i16(r[8:]), i16(r[10:]), i16(r[12:])}, [3]int16{i16(r[14:]), i16(r[16:]), i16(r[18:])},
@@ -235,10 +243,10 @@ func Parse(data []byte) (*BSP, error) {
 	if b, n, err = recs(6, 40); err != nil {
 		return nil, err
 	}
-	for k := 0; k < n; k++ {
+	for k := range n {
 		r := b[40*k:]
 		var t TexInfo
-		for j := 0; j < 4; j++ {
+		for j := range 4 {
 			t.S[j] = f32(r[4*j:])
 			t.T[j] = f32(r[16+4*j:])
 		}
@@ -248,7 +256,7 @@ func Parse(data []byte) (*BSP, error) {
 	if b, n, err = recs(7, 20); err != nil {
 		return nil, err
 	}
-	for k := 0; k < n; k++ {
+	for k := range n {
 		r := b[20*k:]
 		m.Faces = append(m.Faces, Face{i16(r), i16(r[2:]), i32(r[4:]), i16(r[8:]), i16(r[10:]),
 			[4]byte{r[12], r[13], r[14], r[15]}, i32(r[16:])})
@@ -256,14 +264,14 @@ func Parse(data []byte) (*BSP, error) {
 	if b, n, err = recs(9, 8); err != nil {
 		return nil, err
 	}
-	for k := 0; k < n; k++ {
+	for k := range n {
 		r := b[8*k:]
 		m.Clip = append(m.Clip, ClipNode{i32(r), [2]int16{i16(r[4:]), i16(r[6:])}})
 	}
 	if b, n, err = recs(10, 28); err != nil {
 		return nil, err
 	}
-	for k := 0; k < n; k++ {
+	for k := range n {
 		r := b[28*k:]
 		m.Leafs = append(m.Leafs, Leaf{i32(r), i32(r[4:]), [3]int16{i16(r[8:]), i16(r[10:]), i16(r[12:])},
 			[3]int16{i16(r[14:]), i16(r[16:]), i16(r[18:])}, le.Uint16(r[20:]), le.Uint16(r[22:]),
@@ -272,31 +280,31 @@ func Parse(data []byte) (*BSP, error) {
 	if b, n, err = recs(12, 4); err != nil {
 		return nil, err
 	}
-	for k := 0; k < n; k++ {
+	for k := range n {
 		m.Edges = append(m.Edges, [2]uint16{le.Uint16(b[4*k:]), le.Uint16(b[4*k+2:])})
 	}
 	if b, n, err = recs(13, 4); err != nil {
 		return nil, err
 	}
-	for k := 0; k < n; k++ {
+	for k := range n {
 		m.Surf = append(m.Surf, i32(b[4*k:]))
 	}
 	if b, n, err = recs(11, 2); err != nil {
 		return nil, err
 	}
-	for k := 0; k < n; k++ {
+	for k := range n {
 		m.Marks = append(m.Marks, le.Uint16(b[2*k:]))
 	}
 	if b, n, err = recs(14, 64); err != nil {
 		return nil, err
 	}
-	for k := 0; k < n; k++ {
+	for k := range n {
 		r := b[64*k:]
 		var md Model
-		for j := 0; j < 3; j++ {
+		for j := range 3 {
 			md.Mins[j], md.Maxs[j], md.Origin[j] = f32(r[4*j:]), f32(r[12+4*j:]), f32(r[24+4*j:])
 		}
-		for j := 0; j < 4; j++ {
+		for j := range 4 {
 			md.Heads[j] = i32(r[36+4*j:])
 		}
 		md.VisLeafs, md.FirstFace, md.NumFaces = i32(r[52:]), i32(r[56:]), i32(r[60:])
@@ -398,7 +406,7 @@ func (m *BSP) check(tb []byte) {
 			palo := o + 40 + w*h*85/64
 			if palo+2+768 <= len(tb) {
 				m.chk(le.Uint16(tb[palo:]) == 256, "texture palette")
-				for c := 0; c < 256; c++ {
+				for c := range 256 {
 					copy(t.Palette[c][:], tb[palo+2+3*c:palo+5+3*c])
 				}
 			} else {
@@ -420,7 +428,7 @@ func (m *BSP) check(tb []byte) {
 	// face vertices + lightmap extents exactly as the engine computes them
 	for _, f := range m.Faces {
 		var vs [][3]float32
-		for k := 0; k < int(f.NumEdges); k++ {
+		for k := range int(f.NumEdges) {
 			idx := int(f.FirstEdge) + k
 			if idx >= len(m.Surf) {
 				break
@@ -451,7 +459,7 @@ func (m *BSP) check(tb []byte) {
 			continue
 		}
 		var ex Extent
-		for j := 0; j < 2; j++ {
+		for j := range 2 {
 			ax := ti.S
 			if j == 1 {
 				ax = ti.T

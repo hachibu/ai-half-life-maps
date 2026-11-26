@@ -24,6 +24,22 @@ linters:
     - misspell
     - nakedret
     - revive
+    # modern Go and tidiness (round two)
+    - errname
+    - err113
+    - exhaustive
+    - forcetypeassert
+    - godot
+    - intrange
+    - makezero
+    - mirror
+    - modernize
+    - nolintlint
+    - perfsprint
+    - predeclared
+    - usestdlibvars
+    - wastedassign
+    - whitespace
   # prealloc is left out on purpose: a micro-optimisation hint whose suggested capacities are wrong for the
   # variable-length appends this code does (points per brush).
   settings:

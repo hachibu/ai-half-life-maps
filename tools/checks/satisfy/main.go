@@ -8,6 +8,7 @@ package main
 import (
 	"container/heap"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"halflifemaps/tools/bsp/bspfile"
 	"halflifemaps/tools/checks/walker"
@@ -40,7 +41,7 @@ func loadBSP(path string) *BSP {
 		fail("%v", err)
 	}
 	m := &BSP{w: walker.Walker{M: b}}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		m.mins[i] = float64(b.Models[0].Mins[i])
 		m.maxs[i] = float64(b.Models[0].Maxs[i])
 	}
@@ -116,7 +117,13 @@ func (h minHeap) Less(i, j int) bool {
 	return h[i].u < h[j].u
 }
 func (h minHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
-func (h *minHeap) Push(x any)   { *h = append(*h, x.(hitem)) }
+func (h *minHeap) Push(x any) {
+	it, ok := x.(hitem)
+	if !ok {
+		panic("minHeap: pushed a non-hitem")
+	}
+	*h = append(*h, it)
+}
 func (h *minHeap) Pop() any {
 	o := *h
 	x := o[len(o)-1]
@@ -133,7 +140,10 @@ func dijkstra(edges [][]edge, srcs []int, limit float64) map[int]float64 {
 	}
 	heap.Init(h)
 	for h.Len() > 0 {
-		it := heap.Pop(h).(hitem)
+		it, ok := heap.Pop(h).(hitem)
+		if !ok {
+			panic("minHeap: popped a non-hitem")
+		}
 		cur, ok := dist[it.u]
 		if !ok {
 			cur = math.Inf(1)
@@ -159,7 +169,7 @@ func dijkstra(edges [][]edge, srcs []int, limit float64) map[int]float64 {
 func parallelFor(n int, f func(i int)) {
 	var wg sync.WaitGroup
 	next := make(chan int, 256)
-	for w := 0; w < runtime.GOMAXPROCS(0); w++ {
+	for range runtime.GOMAXPROCS(0) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -168,7 +178,7 @@ func parallelFor(n int, f func(i int)) {
 			}
 		}()
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		next <- i
 	}
 	close(next)
@@ -383,11 +393,17 @@ type scenario struct {
 	Within *float64        `json:"within"` // running distance limit; none = any distance
 }
 
+// Holdout scenario errors: they name the rule a scenario broke, never its contents.
+var (
+	errPointShape = errors.New("a point must be [x, y, z_floor]")
+	errFromShape  = errors.New(`"from" must be "spawns" or [x, y, z_floor]`)
+)
+
 // point resolves [x, y, z_floor] to the nearest graph node, or -1.
 func (g *graph) point(raw json.RawMessage) (int, error) {
 	var v []float64
 	if err := json.Unmarshal(raw, &v); err != nil || len(v) != 3 {
-		return -1, fmt.Errorf("a point must be [x, y, z_floor]")
+		return -1, errPointShape
 	}
 	return nearest(g.pts, v[0], v[1], v[2]), nil
 }
@@ -398,7 +414,7 @@ func (g *graph) passes(s scenario) (bool, error) {
 	var from string
 	if json.Unmarshal(s.From, &from) == nil {
 		if from != "spawns" {
-			return false, fmt.Errorf(`"from" must be "spawns" or [x, y, z_floor]`)
+			return false, errFromShape
 		}
 		starts = g.sp
 	} else {

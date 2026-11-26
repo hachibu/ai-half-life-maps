@@ -39,7 +39,7 @@ var kvRe = regexp.MustCompile(`"([^"]*)"`)
 
 func floats(s string) []float64 {
 	var out []float64
-	for _, f := range strings.Fields(s) {
+	for f := range strings.FieldsSeq(s) {
 		v, err := strconv.ParseFloat(f, 64)
 		if err != nil {
 			panic(err)
@@ -84,7 +84,7 @@ func parseMap(path string) []*Entity {
 		case strings.HasPrefix(line, "("):
 			m := faceRe.FindStringSubmatch(line)
 			var p [3]Vec
-			for i := 0; i < 3; i++ {
+			for i := range 3 {
 				f := floats(m[i+1])
 				p[i] = Vec{f[0], f[1], f[2]}
 			}
@@ -100,7 +100,7 @@ func parseMap(path string) []*Entity {
 	return ents
 }
 
-// ------------------------------------------------------------------ output state
+// ------------------------------------------------------------------ output state.
 type DNode struct {
 	Plane               int
 	Children            [2]int
@@ -168,13 +168,15 @@ func texIndex(name string) int {
 
 func texinfoIndex(t *Tex) int {
 	f := func(x float64) string { return strconv.FormatFloat(npRound(x, 5)+0, 'g', -1, 64) }
-	key := strings.ToUpper(t.Name)
+	var kb strings.Builder
+	kb.WriteString(strings.ToUpper(t.Name))
 	for _, x := range t.S {
-		key += "|" + f(x)
+		kb.WriteString("|" + f(x))
 	}
 	for _, x := range t.T {
-		key += "|" + f(x)
+		kb.WriteString("|" + f(x))
 	}
+	key := kb.String()
 	if i, ok := texinfoIdx[key]; ok {
 		return i
 	}
@@ -251,7 +253,7 @@ func inv3(m [3][3]float64) [3][3]float64 {
 	// LU with partial pivoting, like LAPACK's dgesv(A, I) used by numpy.linalg.inv.
 	a := m
 	piv := [3]int{0, 1, 2}
-	for k := 0; k < 3; k++ {
+	for k := range 3 {
 		p := k
 		for i := k + 1; i < 3; i++ {
 			if math.Abs(a[i][k]) > math.Abs(a[p][k]) {
@@ -268,15 +270,15 @@ func inv3(m [3][3]float64) [3][3]float64 {
 		}
 	}
 	var inv [3][3]float64
-	for col := 0; col < 3; col++ {
+	for col := range 3 {
 		var b [3]float64
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			if piv[i] == col {
 				b[i] = 1
 			}
 		}
-		for i := 0; i < 3; i++ {
-			for j := 0; j < i; j++ {
+		for i := range 3 {
+			for j := range i {
 				b[i] -= a[i][j] * b[j]
 			}
 		}
@@ -286,7 +288,7 @@ func inv3(m [3][3]float64) [3][3]float64 {
 			}
 			b[i] /= a[i][i]
 		}
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			inv[i][col] = b[i]
 		}
 	}
@@ -394,8 +396,8 @@ func emitFace(poly Poly, n Vec, d float64, tex *Tex) int {
 	w, h := smx-smn+1, tmx-tmn+1
 	Minv := inv3([3][3]float64{{sv[0], sv[1], sv[2]}, {tv[0], tv[1], tv[2]}, {n[0], n[1], n[2]}})
 	P := make([]Vec, 0, w*h)
-	for j := 0; j < h; j++ {
-		for i := 0; i < w; i++ {
+	for j := range h {
+		for i := range w {
 			rhs := Vec{float64(i+smn)*16 - so, float64(j+tmn)*16 - to, d}
 			p := Vec{rhs.Dot(Vec(Minv[0])), rhs.Dot(Vec(Minv[1])), rhs.Dot(Vec(Minv[2]))} // numpy rhs @ Minv.T
 			p = p.Add(c.Sub(p).Mul(0.02))
@@ -409,7 +411,7 @@ func emitFace(poly Poly, n Vec, d float64, tex *Tex) int {
 	return len(dfaces) - 1
 }
 
-// ------------------------------------------------------------------ writing trees
+// ------------------------------------------------------------------ writing trees.
 func writeHull0(root *Node, isWorld bool) int {
 	type fn struct {
 		idx  int
@@ -511,7 +513,7 @@ func writeClip(root *Node) int {
 	return r
 }
 
-// ------------------------------------------------------------------ models
+// ------------------------------------------------------------------ models.
 var HULLS = [3][2]Vec{{{-16, -16, -36}, {16, 16, 36}}, {{-32, -32, -32}, {32, 32, 32}}, {{-16, -16, -18}, {16, 16, 18}}}
 
 type Model struct {
@@ -523,7 +525,7 @@ type Model struct {
 var WMIN, WMAX Vec
 
 func outsideWorld(p Vec) bool {
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if p[i] < WMIN[i]+EPS || p[i] > WMAX[i]-EPS {
 			return true
 		}
@@ -568,7 +570,7 @@ func compileModel(brushes []Brush, isWorld, noclip bool) Model {
 		trees[0] = buildTree(vis, boxRegion(bmn, bmx), solid)
 	}()
 	if !noclip {
-		for h := 0; h < 3; h++ {
+		for h := range 3 {
 			wg.Add(1)
 			go func(h int) {
 				defer wg.Done()
@@ -629,7 +631,7 @@ func compileModel(brushes []Brush, isWorld, noclip bool) Model {
 // pyG mirrors Python's "%g" formatting.
 func pyG(x float64) string { return strconv.FormatFloat(x, 'g', 6, 64) }
 
-// ------------------------------------------------------------------ main
+// ------------------------------------------------------------------ main.
 func main() {
 	if len(os.Args) != 4 {
 		fmt.Fprintln(os.Stderr, "usage: bspc in.map in.wad out.bsp")
@@ -641,7 +643,7 @@ func main() {
 	world := ents[0]
 	for _, kv := range world.KV {
 		if kv[0] == "_emissive" && kv[1] != "" {
-			for _, item := range strings.Split(kv[1], ",") {
+			for item := range strings.SplitSeq(kv[1], ",") {
 				p := strings.SplitN(item, ":", 2)
 				v, _ := strconv.ParseFloat(p[1], 64)
 				emissive[strings.ToUpper(p[0])] = v
@@ -661,7 +663,7 @@ func main() {
 	}
 	num := int(binary.LittleEndian.Uint32(wad[4:8]))
 	ofs := int(binary.LittleEndian.Uint32(wad[8:12]))
-	for i := 0; i < num; i++ {
+	for i := range num {
 		e := wad[ofs+32*i : ofs+32*(i+1)]
 		pos := int(binary.LittleEndian.Uint32(e[0:4]))
 		dsz := int(binary.LittleEndian.Uint32(e[4:8]))
@@ -890,15 +892,17 @@ func pack(entities []byte, models []Model) []byte {
 			float32(0), float32(0), float32(0), i32(m.Heads[0]), i32(m.Heads[1]), i32(m.Heads[2]), i32(m.Heads[3]),
 			i32(m.Visleafs), i32(m.FirstFace), i32(m.NumFaces))
 	}
-	out := make([]byte, 4+15*8)
+	var buf bytes.Buffer
+	buf.Write(make([]byte, 4+15*8)) // header: version + 15 lump directory entries, filled in below
 	var info [30]uint32
 	for i, data := range L {
-		for len(out)%4 != 0 {
-			out = append(out, 0)
+		for buf.Len()%4 != 0 {
+			buf.WriteByte(0)
 		}
-		info[2*i], info[2*i+1] = u32(len(out)), u32(len(data))
-		out = append(out, data...)
+		info[2*i], info[2*i+1] = u32(buf.Len()), u32(len(data))
+		buf.Write(data)
 	}
+	out := buf.Bytes()
 	le.PutUint32(out[0:4], 30)
 	for i, v := range info {
 		le.PutUint32(out[4+4*i:8+4*i], v)

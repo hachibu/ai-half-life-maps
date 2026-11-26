@@ -62,7 +62,7 @@ func finalizeLighting(world []Brush, lights []Light) {
 	}
 
 	// 1) pull luxels that sit inside solid towards their face centre
-	for it := 0; it < 6; it++ {
+	for range 6 {
 		fmn := make([]Vec, F)
 		fmx := make([]Vec, F)
 		for fi := range start {
@@ -129,7 +129,7 @@ func finalizeLighting(world []Brush, lights []Light) {
 	}
 
 	// 3) every face independently: ambient, then each light in order (same sum order as the Python version)
-	var done int64
+	var done atomic.Int64
 	total := 0
 	parallelFor(F, func(fi int) {
 		S := start[fi]
@@ -147,7 +147,7 @@ func finalizeLighting(world []Brush, lights []Light) {
 			R := info[li].R
 			// whole face out of range? (conservative: 1 unit margin keeps this identical to per-luxel tests)
 			var gap Vec
-			for a := 0; a < 3; a++ {
+			for a := range 3 {
 				if l.P[a] < fmn[a] {
 					gap[a] = fmn[a] - l.P[a]
 				} else if l.P[a] > fmx[a] {
@@ -170,7 +170,7 @@ func finalizeLighting(world []Brush, lights []Light) {
 				continue
 			}
 			smn, smx := fmn, fmx
-			for a := 0; a < 3; a++ {
+			for a := range 3 {
 				smn[a] = math.Min(fmn[a], l.P[a])
 				smx[a] = math.Max(fmx[a], l.P[a])
 			}
@@ -216,7 +216,7 @@ func finalizeLighting(world []Brush, lights []Light) {
 		pd := pending[fi]
 		e, hasE := emissive[pd.Name]
 		for i, a := range acc {
-			for c := 0; c < 3; c++ {
+			for c := range 3 {
 				v := a[c]
 				if hasE {
 					v = math.Max(v, e)
@@ -225,7 +225,7 @@ func finalizeLighting(world []Brush, lights []Light) {
 				lightdata[pd.Ofs+3*i+c] = byte(v)
 			}
 		}
-		if n := atomic.AddInt64(&done, 1); n%2000 == 0 {
+		if n := done.Add(1); n%2000 == 0 {
 			fmt.Printf("  faces lit %d/%d  %.1fs\n", n, F, time.Since(t0).Seconds())
 		}
 	})
