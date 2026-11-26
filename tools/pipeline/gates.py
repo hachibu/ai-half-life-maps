@@ -46,7 +46,9 @@ def gate_spec(task, closed_numbers, existing_maps):
     for p in task["paths"]:
         if not p.startswith(M.ALLOWED_ROOTS): r.fail("path %r is outside the repo areas %s" % (p, ", ".join(M.ALLOWED_ROOTS)))
     mp = task["map"]
-    if not M.filled(mp): r.fail("Map is empty (a map name, new:<name>, or none)")
+    if mp.lower() == "none":
+        pass                                           # tools/docs task: no map (M.filled() treats "none" as empty)
+    elif not M.filled(mp): r.fail("Map is empty (a map name, new:<name>, or none)")
     elif mp != "none" and not mp.startswith("new:") and mp not in existing_maps:
         r.fail("map %r does not exist (use new:<name> for a new map)" % mp)
     if r.state == OK:
