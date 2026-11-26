@@ -88,7 +88,7 @@ def fade(t, t0, hold, fin=0.15, fout=0.6):
 
 def render_chunk(args):
     ci, f0, f1, path = args
-    from tools.render.renderer import Renderer
+    from tools.render.client import Renderer
     R = Renderer(BSP, asset_root=VALVE)
     door = [mi for mi, kv in R.minfo.items() if kv.get("targetname") == "server_door"][0]
     fans = [(mi, float(kv.get("speed", 0))) for mi, kv in R.minfo.items() if kv["classname"] == "func_rotating"]
@@ -109,6 +109,7 @@ def render_chunk(args):
         p.stdin.write(img.tobytes())
         if fr % 30 == 0: print("chunk %d frame %d/%d" % (ci, fr - f0, f1 - f0), flush=True)
     p.stdin.close()
+    R.close()
     if p.wait() == 0: os.replace(tmp, path)
     return path
 
@@ -139,9 +140,10 @@ def audio(path, house_boxes, sr=22050):
 if __name__ == "__main__":
     mode = sys.argv[1]; args = sys.argv[2:]
     if mode == "check":
-        from tools.bsp.reader import load
-        m = load(BSP)
-        bad = [round(f / FPS, 2) for f in range(int(DUR * FPS)) if m.solid(tuple(cam(f / FPS)[0]))]
+        from tools.render.client import Renderer
+        r = Renderer(BSP, asset_root=VALVE)
+        bad = [round(f / FPS, 2) for f in range(int(DUR * FPS)) if r.solid(tuple(cam(f / FPS)[0]))]
+        r.close()
         print("camera-in-solid frames:", len(bad), bad[:40])
     elif mode == "stills":
         times = list(map(float, args))

@@ -15,4 +15,4 @@ The engine only treats a face as sky (no lightmap, no subdivision) when its text
 
 ## Rule
 
-Name the sky texture `sky` (lowercase). `tools/bsp/reader.py` fails a build whose sky is not lowercase; never weaken that check.
+Name the sky texture `sky` (lowercase). The structure check (`tools/bsp/bspfile`) fails a build whose sky is not lowercase; never weaken that check.
