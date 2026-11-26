@@ -7,13 +7,13 @@ package main
 
 import (
 	"container/heap"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"halflifemaps/tools/bsp/bspfile"
+	"halflifemaps/tools/checks/walker"
 	"io"
 	"math"
 	"os"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -26,127 +26,38 @@ const (
 	stepH    = 18
 )
 
-// ------------------------------------------------------------------ BSP (only what the walker needs)
-type bspPlane struct {
-	n   [3]float64
-	d   float64
-	typ int32
-}
-type clipNode struct {
-	plane int32
-	ch    [2]int16
-}
+// BSP is the scorer's view of a map: the shared reader (tools/bsp/bspfile) and walker (tools/checks/walker),
+// plus the world bounds and entities in the form the sampling code uses.
 type BSP struct {
-	planes     []bspPlane
-	clip       []clipNode
+	w          walker.Walker
 	mins, maxs [3]float64
-	head1      int
 	ents       []map[string]string
 }
 
-var blockRe = regexp.MustCompile(`\{([^{}]*)\}`)
-var kvRe = regexp.MustCompile(`"([^"]*)" "([^"]*)"`)
-
-// s32 and s16 read little-endian signed integers (two's complement) straight from the bytes.
-func s32(b []byte) int32 {
-	return int32(b[0]) | int32(b[1])<<8 | int32(b[2])<<16 | int32(b[3])<<24
-}
-
-func s16(b []byte) int16 {
-	return int16(b[0]) | int16(b[1])<<8
-}
-
 func loadBSP(path string) *BSP {
-	data, err := os.ReadFile(path)
+	b, err := bspfile.Load(path)
 	if err != nil {
-		panic(err)
+		fail("%v", err)
 	}
-	le := binary.LittleEndian
-	lump := func(i int) []byte {
-		o := int(s32(data[4+8*i:]))
-		n := int(s32(data[8+8*i:]))
-		return data[o : o+n]
-	}
-	f32 := func(b []byte) float64 { return float64(math.Float32frombits(le.Uint32(b))) }
-	m := &BSP{}
-	pl := lump(1)
-	for k := 0; k+20 <= len(pl); k += 20 {
-		m.planes = append(m.planes, bspPlane{[3]float64{f32(pl[k:]), f32(pl[k+4:]), f32(pl[k+8:])}, f32(pl[k+12:]), s32(pl[k+16:])})
-	}
-	cl := lump(9)
-	for k := 0; k+8 <= len(cl); k += 8 {
-		m.clip = append(m.clip, clipNode{s32(cl[k:]), [2]int16{s16(cl[k+4:]), s16(cl[k+6:])}})
-	}
-	md := lump(14)
+	m := &BSP{w: walker.Walker{M: b}}
 	for i := 0; i < 3; i++ {
-		m.mins[i] = f32(md[4*i:])
-		m.maxs[i] = f32(md[12+4*i:])
+		m.mins[i] = float64(b.Models[0].Mins[i])
+		m.maxs[i] = float64(b.Models[0].Maxs[i])
 	}
-	m.head1 = int(s32(md[36+4:]))
-	for _, b := range blockRe.FindAllStringSubmatch(string(lump(0)), -1) {
-		e := map[string]string{}
-		for _, kv := range kvRe.FindAllStringSubmatch(b[1], -1) {
-			e[kv[1]] = kv[2]
-		}
-		m.ents = append(m.ents, e)
+	for _, e := range b.Entities {
+		m.ents = append(m.ents, e.Val)
 	}
 	return m
 }
 
-// free mirrors reader.player_free: point test in clip hull 1.
-func (m *BSP) free(x, y, z float64) bool {
-	p := [3]float64{x, y, z}
-	n := m.head1
-	for n >= 0 {
-		c := m.clip[n]
-		pl := m.planes[c.plane]
-		var d float64
-		if pl.typ < 3 {
-			d = p[pl.typ] - pl.d
-		} else {
-			d = dot3(pl.n[0], pl.n[1], pl.n[2], x, y, z) - pl.d
-		}
-		if d >= 0 {
-			n = int(c.ch[0])
-		} else {
-			n = int(c.ch[1])
-		}
-	}
-	return n == -1
-}
+func (m *BSP) free(x, y, z float64) bool { return m.w.Free(x, y, z) }
 
-// walk mirrors tools/checks/walk.py Walker.walk for a single segment (step 4).
+// walk follows one straight segment; it returns whether it is passable and the final floor height.
 func (m *BSP) walk(floorZ, ax, ay, bx, by float64) (bool, float64) {
-	z := floorZ + 36
-	if !m.free(ax, ay, z) {
-		return false, floorZ
-	}
-	dx, dy := bx-ax, by-ay
-	n := int(norm2(dx, dy) / 4)
-	if n < 1 {
-		n = 1
-	}
-	for i := 1; i <= n; i++ {
-		px := ax + float64(dx*float64(i))/float64(n)
-		py := ay + float64(dy*float64(i))/float64(n)
-		up := 0
-		for ; up <= stepH; up++ {
-			if m.free(px, py, z+float64(up)) {
-				break
-			}
-		}
-		if up > stepH {
-			return false, z - 36
-		}
-		z += float64(up)
-		for m.free(px, py, z-1) && z > -4000 {
-			z--
-		}
-	}
-	return true, z - 36
+	ok, _, end := m.w.Walk(floorZ, [][2]float64{{ax, ay}, {bx, by}})
+	return ok, end
 }
 
-// ------------------------------------------------------------------ graph
 type pt [3]float64
 type edge struct {
 	to int

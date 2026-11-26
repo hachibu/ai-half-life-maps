@@ -34,21 +34,28 @@ SATISFY  = build/bin/satisfy
 $(BSPC): $(wildcard tools/bsp/bspc/*.go) go.mod
 	go build -o $(BSPC) ./tools/bsp/bspc
 
-$(SATISFY): $(wildcard tools/checks/satisfy/*.go) go.mod
+$(SATISFY): $(wildcard tools/checks/satisfy/*.go tools/bsp/bspfile/*.go tools/checks/walker/*.go) go.mod
 	go build -o $(SATISFY) ./tools/checks/satisfy
 
-bspc: $(BSPC) $(SATISFY)
+MAPCHECK = build/bin/mapcheck
+
+$(MAPCHECK): $(wildcard tools/checks/mapcheck/*.go tools/bsp/bspfile/*.go tools/checks/walker/*.go) go.mod
+	go build -o $(MAPCHECK) ./tools/checks/mapcheck
+
+bspc: $(BSPC) $(SATISFY) $(MAPCHECK)
 
 build: check-map $(BSPC)
 	timeout $(TIMEOUT) $(PY) maps/$(MAP)/build.py
 	timeout $(TIMEOUT) $(BSPC) $(BD)/$(MAP).map $(BD)/$(MAP).wad $(BD)/$(MAP).bsp
 	$(PY) -m tools.package $(MAP)
 
-test: check-map
-	$(PY) -m tools.checks.structure $(BD)/$(MAP).bsp
-	$(PY) -m tools.checks.placements $(BD)/$(MAP).bsp
-	$(PY) -m tools.checks.wiring $(BD)/$(MAP).bsp
-	@if [ -f maps/$(MAP)/tests/routes.py ]; then timeout 900 $(PY) maps/$(MAP)/tests/routes.py $(BD)/$(MAP).bsp; fi
+test: check-map $(MAPCHECK)
+	$(MAPCHECK) structure $(BD)/$(MAP).bsp
+	$(MAPCHECK) placements $(BD)/$(MAP).bsp
+	$(MAPCHECK) wiring $(BD)/$(MAP).bsp
+	@if [ -f maps/$(MAP)/tests/routes.py ]; then \
+	  ROUTES_JSON=1 $(PY) maps/$(MAP)/tests/routes.py > $(BD)/routes.json && \
+	  timeout 900 $(MAPCHECK) routes $(BD)/$(MAP).bsp $(BD)/routes.json; fi
 
 views: check-map
 	timeout 900 $(PY) -m tools.render.views $(MAP)

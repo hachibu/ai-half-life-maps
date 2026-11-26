@@ -8,14 +8,6 @@ import (
 	"strconv"
 )
 
-// dot3 = numpy.dot / @ on 3-vectors (OpenBLAS ddot): fma(a2,b2, fma(a1,b1, a0*b0)).
-func dot3(a0, a1, a2, b0, b1, b2 float64) float64 {
-	return math.FMA(a2, b2, math.FMA(a1, b1, float64(a0*b0)))
-}
-
-// norm2 = numpy.linalg.norm on a 2-vector: sqrt(fma(v1,v1, v0*v0)).
-func norm2(v0, v1 float64) float64 { return math.Sqrt(math.FMA(v1, v1, float64(v0*v0))) }
-
 // hypot = Python's math.hypot(x, y), which is correctly rounded. A double-double estimate settles almost
 // every case; near-ties fall back to exact big-float arithmetic.
 func hypot(x, y float64) float64 {

@@ -77,7 +77,9 @@ The repo is laid out so that two agent sessions almost never edit the same file:
 ```
 tools/bsp/bspc/             the BSP compiler (Go); its output is pinned by `make golden`
 tools/bsp/reader.py         reads a compiled .bsp; shared by every check and the renderer
-tools/checks/               structure (engine limits), placements, wiring, walk (route walker)
+tools/bsp/bspfile/           Go BSP reader shared by the checks and the scorer (limits, consistency, hulls)
+tools/checks/mapcheck/      `make test`: structure (engine limits), placements, wiring, walk routes (Go)
+tools/checks/walker/        the route walker (Go): 18-unit steps, free drops; walk.py hands it each map's ROUTES
 tools/render/               preview renderer (+ views.py for a map's preview shots)
 tools/assets/library.py     texture helpers, base textures, WAD writer
 tools/assets/skyfire.py     skybox faces (TGA) + fire sprite
