@@ -191,11 +191,12 @@ func finalizeLighting(world []Brush, lights []Light) {
 					for _, pl := range world[k] {
 						sn := S[i].DotE(pl.N) - pl.D // numpy einsum
 						dn := dvec[i].DotE(pl.N)
-						if dn < 0 {
+						switch {
+						case dn < 0:
 							t0 = math.Max(t0, -sn/dn)
-						} else if dn > 0 {
+						case dn > 0:
 							t1 = math.Min(t1, -sn/dn)
-						} else if sn > 0 {
+						case sn > 0:
 							parOut = true
 						}
 					}

@@ -47,6 +47,15 @@ type BSP struct {
 var blockRe = regexp.MustCompile(`\{([^{}]*)\}`)
 var kvRe = regexp.MustCompile(`"([^"]*)" "([^"]*)"`)
 
+// s32 and s16 read little-endian signed integers (two's complement) straight from the bytes.
+func s32(b []byte) int32 {
+	return int32(b[0]) | int32(b[1])<<8 | int32(b[2])<<16 | int32(b[3])<<24
+}
+
+func s16(b []byte) int16 {
+	return int16(b[0]) | int16(b[1])<<8
+}
+
 func loadBSP(path string) *BSP {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -54,26 +63,26 @@ func loadBSP(path string) *BSP {
 	}
 	le := binary.LittleEndian
 	lump := func(i int) []byte {
-		o := int(int32(le.Uint32(data[4+8*i:])))
-		n := int(int32(le.Uint32(data[8+8*i:])))
+		o := int(s32(data[4+8*i:]))
+		n := int(s32(data[8+8*i:]))
 		return data[o : o+n]
 	}
 	f32 := func(b []byte) float64 { return float64(math.Float32frombits(le.Uint32(b))) }
 	m := &BSP{}
 	pl := lump(1)
 	for k := 0; k+20 <= len(pl); k += 20 {
-		m.planes = append(m.planes, bspPlane{[3]float64{f32(pl[k:]), f32(pl[k+4:]), f32(pl[k+8:])}, f32(pl[k+12:]), int32(le.Uint32(pl[k+16:]))})
+		m.planes = append(m.planes, bspPlane{[3]float64{f32(pl[k:]), f32(pl[k+4:]), f32(pl[k+8:])}, f32(pl[k+12:]), s32(pl[k+16:])})
 	}
 	cl := lump(9)
 	for k := 0; k+8 <= len(cl); k += 8 {
-		m.clip = append(m.clip, clipNode{int32(le.Uint32(cl[k:])), [2]int16{int16(le.Uint16(cl[k+4:])), int16(le.Uint16(cl[k+6:]))}})
+		m.clip = append(m.clip, clipNode{s32(cl[k:]), [2]int16{s16(cl[k+4:]), s16(cl[k+6:])}})
 	}
 	md := lump(14)
 	for i := 0; i < 3; i++ {
 		m.mins[i] = f32(md[4*i:])
 		m.maxs[i] = f32(md[12+4*i:])
 	}
-	m.head1 = int(int32(le.Uint32(md[36+4:])))
+	m.head1 = int(s32(md[36+4:]))
 	for _, b := range blockRe.FindAllStringSubmatch(string(lump(0)), -1) {
 		e := map[string]string{}
 		for _, kv := range kvRe.FindAllStringSubmatch(b[1], -1) {
@@ -131,7 +140,7 @@ func (m *BSP) walk(floorZ, ax, ay, bx, by float64) (bool, float64) {
 		}
 		z += float64(up)
 		for m.free(px, py, z-1) && z > -4000 {
-			z -= 1
+			z--
 		}
 	}
 	return true, z - 36
@@ -259,7 +268,7 @@ func mean(xs []bool) float64 {
 	s := 0.0
 	for _, b := range xs {
 		if b {
-			s += 1
+			s++
 		}
 	}
 	return s / float64(len(xs))
@@ -316,7 +325,7 @@ func buildGraph(m *BSP, seed uint64) *graph {
 			if prev && !f {
 				zz := z + 6
 				for zz > z && m.free(x, y, zz-1) {
-					zz -= 1
+					zz--
 				}
 				out = append(out, pt{x, y, zz})
 			}
@@ -333,14 +342,14 @@ func buildGraph(m *BSP, seed uint64) *graph {
 	for _, s := range spawns {
 		z := s[2]
 		for m.free(s[0], s[1], z-1) && z > m.mins[2] {
-			z -= 1
+			z--
 		}
 		pts = append(pts, pt{s[0], s[1], z})
 	}
 	for _, it := range items {
 		zz := it.z + 36
 		for m.free(it.x, it.y, zz-1) && zz > m.mins[2] {
-			zz -= 1
+			zz--
 		}
 		if m.free(it.x, it.y, zz) {
 			pts = append(pts, pt{it.x, it.y, zz})

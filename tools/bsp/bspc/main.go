@@ -714,8 +714,8 @@ func main() {
 					nb := make(Brush, len(b))
 					for i, p := range b {
 						t := *p.Tex
-						t.S[3] = t.S[3] + Vec{t.S[0], t.S[1], t.S[2]}.Dot(oc)
-						t.T[3] = t.T[3] + Vec{t.T[0], t.T[1], t.T[2]}.Dot(oc)
+						t.S[3] += Vec{t.S[0], t.S[1], t.S[2]}.Dot(oc)
+						t.T[3] += Vec{t.T[0], t.T[1], t.T[2]}.Dot(oc)
 						nb[i] = Plane{p.N, p.D - p.N.Dot(oc), &t}
 					}
 					brs = append(brs, nb)
@@ -726,7 +726,8 @@ func main() {
 						nkv = append(nkv, p)
 					}
 				}
-				kv = append(nkv, [2]string{"origin", pyG(oc[0]) + " " + pyG(oc[1]) + " " + pyG(oc[2])})
+				nkv = append(nkv, [2]string{"origin", pyG(oc[0]) + " " + pyG(oc[1]) + " " + pyG(oc[2])})
+				kv = nkv
 				lightOfs = oc
 			}
 			noclip := cls == "func_illusionary" || cls == "func_rotating"
@@ -772,6 +773,41 @@ func s16(v float64) int16 {
 	return int16(v)
 }
 
+// The BSP format stores indices and counts in fixed-width fields. A value that doesn't fit would wrap silently
+// and write a corrupt map, so the compile stops instead (Python's struct.pack raised here too). Engine limits
+// (AGENTS.md) keep real maps far below these.
+func overflow(v int, typ string) string {
+	return fmt.Sprintf("BSP field overflow: %d does not fit in %s", v, typ)
+}
+
+func i32(v int) int32 {
+	if v < math.MinInt32 || v > math.MaxInt32 {
+		panic(overflow(v, "int32"))
+	}
+	return int32(v)
+}
+
+func i16(v int) int16 {
+	if v < math.MinInt16 || v > math.MaxInt16 {
+		panic(overflow(v, "int16"))
+	}
+	return int16(v)
+}
+
+func u16(v int) uint16 {
+	if v < 0 || v > math.MaxUint16 {
+		panic(overflow(v, "uint16"))
+	}
+	return uint16(v)
+}
+
+func u32(v int) uint32 {
+	if v < 0 || v > math.MaxUint32 {
+		panic(overflow(v, "uint32"))
+	}
+	return uint32(v)
+}
+
 func pack(entities []byte, models []Model) []byte {
 	le := binary.LittleEndian
 	var L [15][]byte
@@ -788,7 +824,7 @@ func pack(entities []byte, models []Model) []byte {
 	}
 	L[0] = entities
 	for _, p := range dplanes {
-		w(1, float32(p.N[0]), float32(p.N[1]), float32(p.N[2]), float32(p.D), int32(p.Typ))
+		w(1, float32(p.N[0]), float32(p.N[1]), float32(p.N[2]), float32(p.D), i32(p.Typ))
 	}
 	for _, nm := range append([]string(nil), texNames...) {
 		if strings.HasPrefix(nm, "+0") {
@@ -803,10 +839,10 @@ func pack(entities []byte, models []Model) []byte {
 		}
 	}
 	hdr := 4 + 4*len(texNames)
-	w(2, int32(len(texNames)))
+	w(2, i32(len(texNames)))
 	pos := hdr
 	for _, nm := range texNames {
-		w(2, int32(pos))
+		w(2, i32(pos))
 		pos += len(wadtex[nm])
 	}
 	for _, nm := range texNames {
@@ -818,54 +854,54 @@ func pack(entities []byte, models []Model) []byte {
 	fl := func(x float64) int16 { return s16(math.Floor(x)) }
 	cl := func(x float64) int16 { return s16(math.Ceil(x)) }
 	for _, n := range dnodes {
-		w(5, int32(n.Plane), int16(n.Children[0]), int16(n.Children[1]), fl(n.Mins[0]), fl(n.Mins[1]), fl(n.Mins[2]),
-			cl(n.Maxs[0]), cl(n.Maxs[1]), cl(n.Maxs[2]), uint16(n.FirstFace), uint16(n.NumFaces))
+		w(5, i32(n.Plane), i16(n.Children[0]), i16(n.Children[1]), fl(n.Mins[0]), fl(n.Mins[1]), fl(n.Mins[2]),
+			cl(n.Maxs[0]), cl(n.Maxs[1]), cl(n.Maxs[2]), u16(n.FirstFace), u16(n.NumFaces))
 	}
 	for _, t := range texinfos {
 		w(6, float32(t.S[0]), float32(t.S[1]), float32(t.S[2]), float32(t.S[3]),
-			float32(t.T[0]), float32(t.T[1]), float32(t.T[2]), float32(t.T[3]), int32(t.Miptex), int32(t.Flag))
+			float32(t.T[0]), float32(t.T[1]), float32(t.T[2]), float32(t.T[3]), i32(t.Miptex), i32(t.Flag))
 	}
 	for _, f := range dfaces {
 		st := [4]byte{0, 255, 255, 255}
 		if f.Sky {
 			st = [4]byte{255, 255, 255, 255}
 		}
-		w(7, int16(f.Plane), int16(f.Side), int32(f.FirstEdge), int16(f.NumEdges), int16(f.Texinfo), st, int32(f.LightOfs))
+		w(7, i16(f.Plane), i16(f.Side), i32(f.FirstEdge), i16(f.NumEdges), i16(f.Texinfo), st, i32(f.LightOfs))
 	}
 	L[8] = lightdata
 	for _, c := range dclip {
-		w(9, int32(c.Plane), int16(c.Children[0]), int16(c.Children[1]))
+		w(9, i32(c.Plane), i16(c.Children[0]), i16(c.Children[1]))
 	}
 	for _, lf := range dleafs {
-		w(10, int32(lf.Contents), int32(-1), fl(lf.Mins[0]), fl(lf.Mins[1]), fl(lf.Mins[2]),
-			cl(lf.Maxs[0]), cl(lf.Maxs[1]), cl(lf.Maxs[2]), uint16(lf.First), uint16(lf.Num), [4]byte{})
+		w(10, i32(lf.Contents), int32(-1), fl(lf.Mins[0]), fl(lf.Mins[1]), fl(lf.Mins[2]),
+			cl(lf.Maxs[0]), cl(lf.Maxs[1]), cl(lf.Maxs[2]), u16(lf.First), u16(lf.Num), [4]byte{})
 	}
 	for _, m := range marksurf {
-		w(11, uint16(m))
+		w(11, u16(m))
 	}
 	for _, e := range edges {
-		w(12, uint16(e[0]), uint16(e[1]))
+		w(12, u16(e[0]), u16(e[1]))
 	}
 	for _, s := range surfedges {
-		w(13, int32(s))
+		w(13, i32(s))
 	}
 	for _, m := range models {
 		w(14, float32(m.Mins[0]), float32(m.Mins[1]), float32(m.Mins[2]), float32(m.Maxs[0]), float32(m.Maxs[1]), float32(m.Maxs[2]),
-			float32(0), float32(0), float32(0), int32(m.Heads[0]), int32(m.Heads[1]), int32(m.Heads[2]), int32(m.Heads[3]),
-			int32(m.Visleafs), int32(m.FirstFace), int32(m.NumFaces))
+			float32(0), float32(0), float32(0), i32(m.Heads[0]), i32(m.Heads[1]), i32(m.Heads[2]), i32(m.Heads[3]),
+			i32(m.Visleafs), i32(m.FirstFace), i32(m.NumFaces))
 	}
 	out := make([]byte, 4+15*8)
-	var info [30]int32
+	var info [30]uint32
 	for i, data := range L {
 		for len(out)%4 != 0 {
 			out = append(out, 0)
 		}
-		info[2*i], info[2*i+1] = int32(len(out)), int32(len(data))
+		info[2*i], info[2*i+1] = u32(len(out)), u32(len(data))
 		out = append(out, data...)
 	}
 	le.PutUint32(out[0:4], 30)
 	for i, v := range info {
-		le.PutUint32(out[4+4*i:8+4*i], uint32(v))
+		le.PutUint32(out[4+4*i:8+4*i], v)
 	}
 	return out
 }

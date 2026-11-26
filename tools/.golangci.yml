@@ -1,11 +1,37 @@
 # golangci-lint v2 config for all Go code in the repo (one go.mod at the root). It lives under tools/ because
 # task Paths must stay inside the repo areas; `make lint` passes it with -c from the repo root. CI pins the
 # same golangci-lint version in .github/workflows/map-check.yml.
-# Standard linters: errcheck, govet, ineffassign, staticcheck, unused. Formatter: gofmt.
+#
+# Output is pinned by `make golden`, so a lint fix must never change a compiled BSP or a score: run
+# `make golden` after fixing anything in tools/bsp/bspc or tools/checks/satisfy.
 version: "2"
 
 linters:
-  default: standard
+  default: standard            # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    # bugs
+    - bodyclose
+    - copyloopvar
+    - errorlint
+    - gosec
+    - nilerr
+    - unconvert
+    - unparam
+    # style and clarity
+    - dupl
+    - gocritic
+    - goconst
+    - misspell
+    - nakedret
+    - revive
+  # prealloc is left out on purpose: a micro-optimisation hint whose suggested capacities are wrong for the
+  # variable-length appends this code does (points per brush).
+  settings:
+    gosec:
+      excludes:
+        - G304   # file path from a variable: these are command-line tools that read the files they're given
+        - G703   # path traversal via taint analysis: the same thing, seen through the command-line arguments
+        - G306   # WriteFile with 0644: build outputs are meant to be readable
 
 formatters:
   enable:
