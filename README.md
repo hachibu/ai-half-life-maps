@@ -7,9 +7,9 @@ our Go tools (engine limits, spawns, wiring, walkable routes, screenshots).
 
 ## Watch
 
-<a href="https://github.com/hachibu/ai-half-life-maps/releases/latest/download/battleaxecombatleague_walkthrough.mp4"><img src="https://raw.githubusercontent.com/hachibu/ai-half-life-maps/previews/main/battleaxecombatleague/stadium.jpg" alt="BattleAxe Combat League walkthrough video" width="100%"></a>
+<a href="https://github.com/hachibu/ai-half-life-maps/releases/download/walkthroughs/battleaxecombatleague_walkthrough.mp4"><img src="https://raw.githubusercontent.com/hachibu/ai-half-life-maps/previews/main/battleaxecombatleague/stadium.jpg" alt="BattleAxe Combat League walkthrough video" width="100%"></a>
 
-▶ **[Watch the BattleAxe Combat League walkthrough](https://github.com/hachibu/ai-half-life-maps/releases/latest/download/battleaxecombatleague_walkthrough.mp4)** (51 s): fight night
+▶ **[Watch the BattleAxe Combat League walkthrough](https://github.com/hachibu/ai-half-life-maps/releases/download/walkthroughs/battleaxecombatleague_walkthrough.mp4)** (51 s): fight night
 from the locker room, down the flaming walkout into the cage, up through the crowd to the upper deck. Every map
 has its own walkthrough, linked from its page below.
 

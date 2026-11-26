@@ -1,10 +1,8 @@
 name: release
 
 # On every merge to main (automerge.yml dispatches this after it merges an agent PR): build and test every map,
-# render the walkthrough video of every map that has one (maps/<map>/video/walkthrough.py), publish the playable
-# zips and the videos as a GitHub release, and store screenshots on the `previews` branch as the "before" for pull
-# requests. READMEs link the videos as releases/latest/download/<map>_walkthrough.mp4. GitHub emails the owner if
-# it fails.
+# publish the playable zips as a GitHub release, and store screenshots on the `previews` branch as the
+# "before" for pull requests. GitHub emails the owner if it fails.
 on:
   push:
     branches: [main]
@@ -50,19 +48,11 @@ jobs:
       - run: make build MAP=${{ matrix.map }}
       - run: make test MAP=${{ matrix.map }}
       - run: make views MAP=${{ matrix.map }}
-      - name: Walkthrough video (maps with video/walkthrough.py; a failed video doesn't hold up the release)
-        if: hashFiles(format('maps/{0}/video/walkthrough.py', matrix.map)) != ''
-        continue-on-error: true
-        timeout-minutes: 40
-        run: |
-          command -v ffmpeg >/dev/null || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg)
-          make video MAP=${{ matrix.map }}
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.map }}
           path: |
             build/${{ matrix.map }}/${{ matrix.map }}.zip
-            build/${{ matrix.map }}/${{ matrix.map }}_walkthrough*.mp4
             build/${{ matrix.map }}/previews/
 
   publish:
@@ -90,8 +80,7 @@ jobs:
           SUBJECT=$(git log -1 --format=%s)
           TITLE="$(date -u '+%b %-d, %Y') · $SUBJECT"
           echo "release $TAG: $TITLE"
-          VIDEOS=$(ls dist/*/*_walkthrough*.mp4 2>/dev/null || true)     # missing if a video failed to render
-          gh release create "$TAG" dist/*/*.zip $VIDEOS --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+          gh release create "$TAG" dist/*/*.zip --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "$TITLE" --generate-notes
 
   screenshots:

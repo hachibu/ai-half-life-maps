@@ -1,0 +1,95 @@
+name: walkthrough videos
+
+# Manual only (Actions -> walkthrough videos -> Run workflow): build every map that has a walkthrough
+# (maps/<map>/video/), render its video with `make video`, and upload the full-quality and Discord-size MP4s to the
+# `walkthroughs` release, replacing the previous ones. READMEs link
+# releases/download/walkthroughs/<map>_walkthrough.mp4, so the links stay the same and show whatever was rendered
+# last. Regular releases don't render videos: they take 5-20 minutes per map.
+on:
+  workflow_dispatch:
+    inputs:
+      maps:
+        description: "Maps to render, space-separated (empty = every map with a walkthrough)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write          # upload to the walkthroughs release
+
+concurrency:
+  group: walkthrough-videos
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      maps: ${{ steps.list.outputs.maps }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        env:
+          WANT: ${{ inputs.maps }}
+        run: |
+          ALL=$(for d in maps/*/video; do [ -d "$d" ] && basename "$(dirname "$d")"; done | grep -v '^_' || true)
+          if [ -n "$WANT" ]; then
+            for m in $WANT; do echo "$ALL" | grep -qx "$m" || { echo "::error::$m has no maps/$m/video/"; exit 1; }; done
+            ALL=$(printf '%s\n' $WANT)
+          fi
+          echo "maps=$(echo "$ALL" | jq -R . | jq -cs 'map(select(length > 0))')" >> "$GITHUB_OUTPUT"
+
+  render:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        map: ${{ fromJSON(needs.plan.outputs.maps) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5          # only while the repo still has Python map scripts
+        if: hashFiles('requirements.txt') != ''
+        with:
+          python-version: "3.12"
+          cache: pip
+      - if: hashFiles('requirements.txt') != ''
+        run: pip install -r requirements.txt
+      - name: Cache SDHLT (the map compiler, built from tools/sdhlt.rev)
+        uses: actions/cache@v4
+        with:
+          path: build/sdhlt
+          key: sdhlt-${{ runner.os }}-${{ hashFiles('tools/sdhlt.rev') }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: go.mod
+      - run: command -v ffmpeg >/dev/null || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg)
+      - run: make build tools MAP=${{ matrix.map }}
+      - run: make video MAP=${{ matrix.map }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: video-${{ matrix.map }}
+          path: build/${{ matrix.map }}/${{ matrix.map }}_walkthrough*.mp4
+          if-no-files-found: error
+
+  publish:
+    needs: render
+    if: always() && needs.render.result != 'cancelled'   # upload whatever rendered, even if one map failed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Upload to the walkthroughs release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          R: ${{ github.repository }}
+        run: |
+          FILES=$(ls dist/*/*_walkthrough*.mp4 2>/dev/null || true)
+          [ -n "$FILES" ] || { echo "::error::no videos rendered"; exit 1; }
+          gh release view walkthroughs --repo "$R" >/dev/null 2>&1 || \
+            gh release create walkthroughs --repo "$R" --target "$GITHUB_SHA" --latest=false \
+              --title "Walkthrough videos" --notes "Walkthrough videos of every map, linked from the READMEs. Re-rendered on demand by the walkthrough videos workflow."
+          gh release upload walkthroughs $FILES --repo "$R" --clobber
+          echo "uploaded from ${GITHUB_SHA::7}:"; ls -la $FILES
