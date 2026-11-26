@@ -1,0 +1,83 @@
+name: release
+
+# On every merge to main: build and test every map, publish the playable zips as a GitHub release,
+# and store the screenshots on the `previews` branch as the "before" images for pull requests.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      maps: ${{ steps.list.outputs.maps }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: echo "maps=$(ls -d maps/*/ | xargs -n1 basename | grep -v '^_' | jq -R . | jq -cs .)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        map: ${{ fromJSON(needs.plan.outputs.maps) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: make build MAP=${{ matrix.map }}
+      - run: make test MAP=${{ matrix.map }}
+      - run: make views MAP=${{ matrix.map }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.map }}
+          path: |
+            build/${{ matrix.map }}/${{ matrix.map }}.zip
+            build/${{ matrix.map }}/previews/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="build-$(date -u +%Y%m%d-%H%M)-${GITHUB_SHA::7}"
+          gh release create "$TAG" dist/*/*.zip --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes
+
+  screenshots:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Store main's screenshots on the previews branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch origin previews:previews; then git worktree add pv previews; else git worktree add --orphan -b previews pv; fi
+          python -m tools.ci.previews store artifacts pv main
+          cd pv && git add -A
+          git diff --cached --quiet || git commit -qm "Screenshots of main at ${GITHUB_SHA::7}"
+          for i in 1 2 3 4 5; do git push origin HEAD:previews && break; sleep $((i * 3)); git pull --rebase -q origin previews; done

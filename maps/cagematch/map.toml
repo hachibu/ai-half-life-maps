@@ -1,0 +1,5 @@
+name = "cagematch"
+title = "Cage Match"
+owner = "claude"
+skyname = ""
+description = "An MMA-style pit with armed spawns inside; everyone else spawns unarmed on the balcony above."

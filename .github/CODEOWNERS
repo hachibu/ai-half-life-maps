@@ -1,0 +1,5 @@
+# Shared infrastructure affects every map: the repo owner approves changes here.
+/tools/      @hachibu
+/.github/    @hachibu
+/Makefile    @hachibu
+/AGENTS.md   @hachibu

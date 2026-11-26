@@ -1,0 +1,108 @@
+name: map-check
+
+# On every pull request: build only the maps it touches (every map if shared tooling changed),
+# run every check, attach the playable zip, and post before/after screenshots as a PR comment.
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: map-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write          # push screenshots to the `previews` branch
+  pull-requests: write     # post the screenshot comment
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      maps: ${{ steps.pick.outputs.maps }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: pick
+        name: Pick maps to build
+        run: |
+          ALL=$(ls -d maps/*/ | xargs -n1 basename | jq -R . | jq -cs .)
+          if [ "${{ github.event_name }}" != "pull_request" ]; then echo "maps=$ALL" >> "$GITHUB_OUTPUT"; exit 0; fi
+          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -qE '^(tools/|Makefile|requirements.txt|\.github/workflows/)'; then
+            echo "maps=$ALL" >> "$GITHUB_OUTPUT"
+          else
+            M=$(echo "$CHANGED" | grep -oE '^maps/[^/]+' | cut -d/ -f2 | sort -u | jq -R . | jq -cs '[.[] | select(length > 0)]')
+            echo "maps=$M" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.maps != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        map: ${{ fromJSON(needs.plan.outputs.maps) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Build ${{ matrix.map }}
+        run: make build MAP=${{ matrix.map }}
+      - name: Test ${{ matrix.map }}
+        run: make test MAP=${{ matrix.map }}
+      - name: Previews
+        if: always()
+        run: make views MAP=${{ matrix.map }} || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.map }}
+          path: |
+            build/${{ matrix.map }}/${{ matrix.map }}.zip
+            build/${{ matrix.map }}/previews/
+          if-no-files-found: ignore
+
+  screenshots:
+    needs: build
+    # same-repo branches only (forks get a read-only token)
+    if: always() && needs.build.result != 'skipped' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREFIX: pr-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Push screenshots to the previews branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch origin previews:previews; then git worktree add pv previews; else git worktree add --orphan -b previews pv; fi
+          python -m tools.ci.previews store artifacts pv "$PREFIX"
+          cd pv && git add -A
+          git diff --cached --quiet || git commit -qm "Screenshots for #${{ github.event.pull_request.number }}"
+          for i in 1 2 3 4 5; do git push origin HEAD:previews && break; sleep $((i * 3)); git pull --rebase -q origin previews; done
+          echo "REF=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Post or update the screenshot comment
+        run: |
+          python -m tools.ci.previews comment pv "$PREFIX" "$GITHUB_REPOSITORY" "$REF" \
+            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > comment.md
+          N=${{ github.event.pull_request.number }}
+          ID=$(gh api "repos/$GITHUB_REPOSITORY/issues/$N/comments" --paginate \
+               --jq '.[] | select(.body | startswith("<!-- map-previews -->")) | .id' | head -1)
+          if [ -n "$ID" ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$ID" -F body=@comment.md >/dev/null
+          else gh pr comment "$N" --body-file comment.md; fi
