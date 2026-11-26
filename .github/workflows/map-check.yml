@@ -51,7 +51,7 @@ jobs:
           ALL=$(ls -d maps/*/ | xargs -n1 basename | jq -R . | jq -cs .)
           if [ "${{ github.event_name }}" != "pull_request" ]; then echo "maps=$ALL" >> "$GITHUB_OUTPUT"; exit 0; fi
           CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
-          MAPCHANGED=$(echo "$CHANGED" | grep -vE '^maps/[^/]+/(README\.md|map\.toml)$' || true)   # docs/metadata don't change a map
+          MAPCHANGED=$(echo "$CHANGED" | grep -vE '^maps/[^/]+/(README\.md|map\.toml|video/.*)$' || true)   # docs, metadata and video scripts don't change a map
           echo "$CHANGED"
           exists() { while read -r m; do [ -n "$m" ] && [ -d "maps/$m" ] && echo "$m"; done; }   # deleted maps aren't built
           echo "direct=$(echo "$MAPCHANGED" | grep -oE '^maps/[^_/][^/]*/' | cut -d/ -f2 | sort -u | exists | tr '\n' ' ')" >> "$GITHUB_OUTPUT"

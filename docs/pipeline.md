@@ -73,11 +73,5 @@ Views: `events`, `latest` (last state per item and gate), `merges`, `failures`, 
 Per-texture light samples of a compiled map (see the light-budget lesson):
 
 ```
-python - <<'EOF'
-from collections import Counter; from tools.bsp.reader import load
-m = load("build/MAP/MAP.bsp"); c = Counter()
-for f, e in zip(m.faces, m.fext):
-    if e: c[m.tex[m.texinfo[f[4]][8]][0]] += (e[0][1] // 16 + 1) * (e[1][1] // 16 + 1)
-print(c.most_common(12))
-EOF
+make bspc && build/bin/bspinfo lightbudget build/MAP/MAP.bsp
 ```
