@@ -55,7 +55,7 @@ func parseMap(path string) []*Entity {
 	if err != nil {
 		panic(err)
 	}
-	defer fh.Close()
+	defer func() { _ = fh.Close() }() // read-only: a failed close loses nothing
 	var ents []*Entity
 	depth := 0
 	var cur *Entity
@@ -779,7 +779,11 @@ func pack(entities []byte, models []Model) []byte {
 	w := func(i int, vals ...any) {
 		var b bytes.Buffer
 		for _, v := range vals {
-			binary.Write(&b, le, v)
+			// Writing to a bytes.Buffer only fails for a type binary.Write can't encode; skipping it
+			// would silently shift every later field in the lump, so stop instead.
+			if err := binary.Write(&b, le, v); err != nil {
+				panic(err)
+			}
 		}
 		L[i] = append(L[i], b.Bytes()...)
 	}
