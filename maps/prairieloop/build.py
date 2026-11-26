@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))     # repo root, for tools.*
 sys.path.insert(0, str(Path(__file__).resolve().parent))         # this map's own modules
 from tools.paths import build_dir
+from tools.mapkit import chunks, detail_entity, split_detail, texlights
 import math, os, sys, json
 import numpy as np
 from scipy.spatial import ConvexHull
@@ -619,7 +620,8 @@ for x in range(XW + SNOW_GAP // 2, XE, SNOW_GAP):
 for y in range(YS + SNOW_GAP // 2, YN, SNOW_GAP):
     for a, b, z0 in snow_spans(y, XW, XE, True):
         SNOW.append(box(a, y - 1, z0, b, y + 1, SNOW_TOP, SNOWTEX))
-bent("func_illusionary", SNOW, rendermode=5, renderamt=200)
+for part in chunks(SNOW, 512):     # falling-snow sheets, in chunks so each has a small bbox
+    bent("func_illusionary", part, rendermode=5, renderamt=200)
 snow_n = len(SNOW)
 for i, (x, y, fr) in enumerate([(-2850, 0, 7), (-2650, -160, 9), (-2950, 200, 11), (-2500, 120, 8)]):
     point("env_sprite", x, y, 380, model="sprites/prairie_burst.spr", rendermode=5, renderamt=210, rendercolor="255 255 255",
@@ -661,13 +663,15 @@ for cls, x, y, z in ITEMS:
     point(cls, round(x, 1), round(y, 1), z, angles="0 %d 0" % (int(abs(x * 3 + y)) % 8 * 45))
 for x, y, z, yaw in SPAWNS:
     point("info_player_deathmatch", round(x, 1), round(y, 1), z, angles="0 %d 0" % (int(math.degrees(math.atan2(-y, -x))) % 360))
-bent("func_illusionary", DECOR)
+for part in chunks(DECOR, 512):
+    bent("func_illusionary", part)
 
+STRUCT, DETAIL = split_detail(W)    # small brushes -> func_detail, so full VIS stays fast
 world = ('{\n"classname" "worldspawn"\n"mapversion" "220"\n"wad" "%s.wad"\n"skyname" "%s"\n'
-         '"message" "Prairie Loop Winter: JustinCon After Hours"\n"_emissive" "%s"\n' % (NAME, NAME,
-         ",".join("%s:%d" % kv for kv in A.EMISSIVE.items())) + "".join(W) + "}\n")
+         '"message" "Prairie Loop Winter: JustinCon After Hours"\n' % (NAME, NAME) + "".join(STRUCT) + "}\n")
 with open(os.path.join(OUT, NAME + ".map"), "w", newline="\r\n") as f:
-    f.write(world + "".join(BENTS) + "".join(ENTS))
+    f.write(world + detail_entity(DETAIL) + "".join(BENTS) + "".join(ENTS)
+            + texlights(os.path.join(OUT, NAME + ".wad"), A.EMISSIVE))
 # ---- generated assets in the game's valve/ layout (sky, sprites, sounds)
 VALVE = os.path.join(OUT, "valve")
 for sub in ("gfx/env", "sprites", "sound/justincon"):
@@ -677,5 +681,5 @@ A.write_spr(os.path.join(VALVE, "sprites", "prairie_burst.spr"), A.burst_frames(
 A.write_spr(os.path.join(VALVE, "sprites", "prairie_steam.spr"), A.steam_frames(), A.SNOW_PAL)
 A.make_sounds(os.path.join(VALVE, "sound", "justincon"))
 A.make_alarm(os.path.join(VALVE, "sound", "justincon", "alarm.wav"))
-print("world brushes %d (earth %d)  decor %d  brush ents %d  items %d  spawns %d  snow sheets %d  point ents %d" % (
-    len(W), EARTH_N, len(DECOR), len(BENTS), len(ITEMS), len(SPAWNS), snow_n, len(ENTS)))
+print("world brushes %d (detail %d, earth %d)  decor %d  brush ents %d  items %d  spawns %d  snow sheets %d  point ents %d" % (
+    len(STRUCT), len(DETAIL), EARTH_N, len(DECOR), len(BENTS), len(ITEMS), len(SPAWNS), snow_n, len(ENTS)))

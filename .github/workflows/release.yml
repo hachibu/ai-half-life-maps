@@ -46,7 +46,7 @@ jobs:
         with:
           go-version: "1.24"
           cache-dependency-path: go.mod
-      - run: make build MAP=${{ matrix.map }} LIGHT=full
+      - run: make build MAP=${{ matrix.map }}
       - run: make test MAP=${{ matrix.map }}
       - name: Quality
         env:

@@ -1,6 +1,6 @@
 # Half-Life 1 map pipeline.  Every map lives in maps/<name>/ and builds into build/<name>/.
-#   make build MAP=prairieloop     generate + compile (SDHLT, quick lighting) + package -> build/prairieloop/prairieloop.zip
-#   make build MAP=x LIGHT=full    the same with full lighting (what releases ship)
+#   make build MAP=prairieloop     generate + compile (SDHLT: full VIS + full lighting) + package -> build/prairieloop/prairieloop.zip
+#   make build MAP=x LIGHT=quick VIS=fast   a much faster draft compile while iterating locally
 #   make golden                    SDHLT + scorer output (template map, prairieloop) must match the committed golden values
 #   make golden-update             re-record the golden values after an intended output change (commit them)
 #   make lint                      golangci-lint: gofmt, go vet, staticcheck, errcheck, unused (tools/.golangci.yml)
@@ -32,9 +32,16 @@ list:
 # It is GPLv2 + Valve's SDK EULA, so it is fetched and built here, never committed. Needs git, cmake and a C++ compiler.
 SDHLT_REV := $(shell cat tools/bsp/sdhlt.rev)
 SDHLT     = $(CURDIR)/build/sdhlt/$(SDHLT_REV)/tools
-LIGHT    ?= quick
-# VIS is always -fast: full VIS on an open map like prairieloop takes most of an hour for little gain.
+# PRs and releases build what players get: full VIS and full lighting. LIGHT=quick VIS=fast is a draft mode for
+# local iteration. Full VIS stays fast because the maps put small brushes in func_detail (tools/mapkit.py).
+LIGHT    ?= full
+VIS      ?= full
+BSPFLAGS  = -maxnodesize 2048
+ifeq ($(VIS),full)
+VISFLAGS  =
+else
 VISFLAGS  = -fast
+endif
 ifeq ($(LIGHT),full)
 RADFLAGS  =
 else
@@ -54,10 +61,11 @@ sdhlt: $(SDHLT)/sdHLRAD
 # -nowadtextures embeds every texture in the .bsp, so the map needs no separate .wad.
 define compile
 	cd $(1) && timeout $(TIMEOUT) $(SDHLT)/sdHLCSG -nowadtextures $(2) > $(2).csg.log \
-	  && timeout $(TIMEOUT) $(SDHLT)/sdHLBSP $(2) > $(2).bsp.log \
+	  && timeout $(TIMEOUT) $(SDHLT)/sdHLBSP $(BSPFLAGS) $(2) > $(2).bsp.log \
 	  && timeout $(TIMEOUT) $(SDHLT)/sdHLVIS $(VISFLAGS) $(2) > $(2).vis.log \
 	  && timeout $(TIMEOUT) $(SDHLT)/sdHLRAD $(RADFLAGS) $(2) > $(2).rad.log \
 	  || (tail -40 $(2).log; exit 1)
+	@cd $(1) && for t in csg bsp vis rad; do printf '  %-4s %s\n' $$t "$$(grep -h 'seconds elapsed' $(2).$$t.log | tail -1)"; done
 endef
 
 SATISFY  = build/bin/satisfy
@@ -83,7 +91,7 @@ bspc: $(SATISFY) $(MAPCHECK) $(RENDER) $(BSPINFO)
 
 build: check-map $(SDHLT)/sdHLRAD
 	timeout $(TIMEOUT) $(PY) maps/$(MAP)/build.py
-	@echo "compiling $(MAP) with SDHLT ($(LIGHT) lighting)"
+	@echo "compiling $(MAP) with SDHLT ($(LIGHT) lighting, $(VIS) vis)"
 	$(call compile,$(BD),$(MAP))
 	$(PY) -m tools.package $(MAP)
 
@@ -132,7 +140,7 @@ holdout-encrypt:
 readme:
 	$(PY) -m tools.readme
 
-# SDHLT's (quick-lighting) output and the Go scorer's are pinned to committed golden values: the compiled BSP's
+# SDHLT's output (draft settings, to keep it quick) and the Go scorer's are pinned to committed golden values: the compiled BSP's
 # SHA-256 and the satisfaction result (seed 4242) for the template map and prairieloop (a real map whose metrics
 # aren't all 1.0). Any change to that output has to be deliberate (`make golden-update`) and shows in the PR diff.
 GOLDEN_MAPS = _template prairieloop
@@ -148,7 +156,7 @@ golden-out: $(SDHLT)/sdHLRAD $(SATISFY)
 	@set -e; for m in $(GOLDEN_MAPS); do \
 	  echo "golden: $$m"; \
 	  timeout 900 $(PY) maps/$$m/build.py > /dev/null; \
-	  (cd build/$$m && timeout 900 $(SDHLT)/sdHLCSG -nowadtextures $$m && timeout 900 $(SDHLT)/sdHLBSP $$m \
+	  (cd build/$$m && timeout 900 $(SDHLT)/sdHLCSG -nowadtextures $$m && timeout 900 $(SDHLT)/sdHLBSP $(BSPFLAGS) $$m \
 	    && timeout 900 $(SDHLT)/sdHLVIS -fast $$m && timeout 900 $(SDHLT)/sdHLRAD -fast -bounce 2 $$m) > /dev/null; \
 	  cp build/$$m/$$m.bsp $(GO_OUT)/$$m.bsp; \
 	  case " $(GOLDEN_HASH) " in *" $$m "*) (cd $(GO_OUT) && sha256sum $$m.bsp) >> $(GO_OUT)/golden.sha256;; esac; \
