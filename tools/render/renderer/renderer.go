@@ -382,6 +382,7 @@ func (r *Renderer) drawFace(fi int, wverts map[int][][3]float64, ftr map[int]Tra
 	ti := m.TexInfo[m.Faces[fi].TexInfo]
 	tex := &m.Textures[ti.Miptex]
 	isSky := tex.Name == "sky"
+	cutout := strings.HasPrefix(tex.Name, "{") // GoldSrc: palette index 255 of a {texture is transparent
 	amt, additive := r.add[fi]
 	tr, hasTr := ftr[fi]
 	lm := r.lm[fi]
@@ -426,16 +427,9 @@ func (r *Renderer) drawFace(fi int, wverts map[int][][3]float64, ftr map[int]Tra
 			}
 			s := dotM(pl, sv) + float64(ti.S[3])
 			tq := dotM(pl, tv) + float64(ti.T[3])
-			si, tj := pyMod(int(s), tex.W), pyMod(int(tq), tex.H)
-			pal := tex.Palette[tex.Pixels[tj*tex.W+si]]
-			var col [3]float64
-			if lm != nil {
-				li := min(max(int(math.RoundToEven((s-float64(lm.smin))/16)), 0), lm.w-1)
-				lj := min(max(int(math.RoundToEven((tq-float64(lm.tmin))/16)), 0), lm.h-1)
-				lc := lm.rgb[lj*lm.w+li]
-				for c := range 3 {
-					col[c] = float64(float64(pal[c])*lc[c]) / 128.0
-				}
+			col, hole := shade(tex, lm, s, tq, cutout)
+			if hole {
+				continue // a hole in a see-through ({name) texture: whatever is behind shows instead
 			}
 			if additive {
 				for c := range 3 {
@@ -614,4 +608,24 @@ func readSPR(path string) ([]sprFrame, error) {
 		frames = append(frames, fr)
 	}
 	return frames, nil
+}
+
+// shade is a face's colour at texture coordinates (s, t): the texel lit by the lightmap. hole reports a
+// transparent texel of a see-through ({name) texture, where whatever is behind should show instead.
+func shade(tex *bspfile.Texture, lm *lightmap, s, t float64, cutout bool) (col [3]float64, hole bool) {
+	si, tj := pyMod(int(s), tex.W), pyMod(int(t), tex.H)
+	pi := tex.Pixels[tj*tex.W+si]
+	if cutout && pi == 255 {
+		return col, true
+	}
+	pal := tex.Palette[pi]
+	if lm != nil {
+		li := min(max(int(math.RoundToEven((s-float64(lm.smin))/16)), 0), lm.w-1)
+		lj := min(max(int(math.RoundToEven((t-float64(lm.tmin))/16)), 0), lm.h-1)
+		lc := lm.rgb[lj*lm.w+li]
+		for c := range 3 {
+			col[c] = float64(float64(pal[c])*lc[c]) / 128.0
+		}
+	}
+	return col, false
 }
