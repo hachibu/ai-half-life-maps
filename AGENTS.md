@@ -65,7 +65,7 @@ The repo is laid out so that two agents almost never edit the same file:
   `zones/_helpers.py`. Open a dedicated pull request for those, claim it with the `tools` label, and only one
   `tools` pull request should be open at a time.
 - **Don't reformat files you didn't otherwise change.** No mass renames or style sweeps mixed into map work.
-- **The original maps** (`justincon`, `battleaxecombatleague`, `prairieloop`) are still
+- **The original maps** (`battleaxecombatleague`, `prairieloop`) are still
   single-file builds. Converting one into zones is its own claimed pull request; until then, one agent at a
   time works on each of those maps.
 
