@@ -295,7 +295,9 @@ func inv3(m [3][3]float64) [3][3]float64 {
 	return inv
 }
 
-func emitFace(poly Poly, n Vec, d float64, tex *Tex) int {
+// faceWinding sorts a face's points clockwise around their centre (seen from the front), registers the
+// vertices, and drops consecutive duplicates. It returns the centre and the vertex indices.
+func faceWinding(poly Poly, n Vec) (Vec, []int) {
 	c := mean(poly)
 	up := Vec{0, 0, 1}
 	if math.Abs(n[2]) >= 0.9 {
@@ -325,6 +327,97 @@ func emitFace(poly Poly, n Vec, d float64, tex *Tex) int {
 			dedup = append(dedup, v)
 		}
 	}
+	return c, dedup
+}
+
+// texFit is a face's texture projection after nudging, with its lightmap extents in 16-unit cells.
+type texFit struct {
+	t      *Tex
+	ex     [2][2]int // [axis][min, max]
+	sv, tv Vec
+	so, to float64
+}
+
+// axisExtent projects the face's points onto one texture axis and returns the extent in 16-unit cells. ok is
+// false when the engine's float32 arithmetic would round the extent differently, or a bound sits within
+// 1e-3 of a cell edge.
+func axisExtent(vs []Vec, v Vec, off float64) (lo, hi int, ok bool) {
+	mn, mx := math.Inf(1), math.Inf(-1)
+	mn32, mx32 := float32(math.Inf(1)), float32(math.Inf(-1))
+	v32 := [3]float32{float32(v[0]), float32(v[1]), float32(v[2])}
+	for _, p := range vs {
+		x := p.DotM(v) + off // numpy vs @ vec (gemv)
+		mn, mx = math.Min(mn, x), math.Max(mx, x)
+		x32 := float32(float32(float32(float32(p[0])*v32[0])+float32(float32(p[1])*v32[1]))+float32(float32(p[2])*v32[2])) + float32(off)
+		if x32 < mn32 {
+			mn32 = x32
+		}
+		if x32 > mx32 {
+			mx32 = x32
+		}
+	}
+	a, b := int(math.Floor(mn/16)), int(math.Ceil(mx/16))
+	a32, b32 := int(math.Floor(float64(mn32)/16)), int(math.Ceil(float64(mx32)/16))
+	margin := math.Min(math.Abs(mn/16-pyRoundInt(mn/16)), math.Abs(mx/16-pyRoundInt(mx/16)))
+	ok = !(a != a32 || b != b32 || (margin > 0 && margin < 1e-3))
+	return a, b, ok
+}
+
+// fitTexture tries small texture-offset nudges until the lightmap extents come out the same in float64 and in
+// the engine's float32 (counting a miss in extentMismatch when none does).
+func fitTexture(vs []Vec, base *Tex) texFit {
+	var f texFit
+	ok := false
+	for _, nudge := range []float64{0, 0.05, -0.05, 0.11, -0.11, 0.23, -0.23, 0.37} {
+		f.t = &Tex{Name: base.Name, S: base.S, T: base.T}
+		f.t.S[3] += nudge
+		f.t.T[3] += nudge
+		f.sv, f.tv = Vec{f.t.S[0], f.t.S[1], f.t.S[2]}, Vec{f.t.T[0], f.t.T[1], f.t.T[2]}
+		f.so, f.to = f.t.S[3], f.t.T[3]
+		ok = true
+		for k, ax := range []struct {
+			v   Vec
+			off float64
+		}{{f.sv, f.so}, {f.tv, f.to}} {
+			a, b, axOK := axisExtent(vs, ax.v, ax.off)
+			if !axOK {
+				ok = false
+			}
+			f.ex[k] = [2]int{a, b}
+		}
+		if ok {
+			break
+		}
+	}
+	if !ok {
+		extentMismatch++
+	}
+	return f
+}
+
+// lightSamples returns the world position of every lightmap sample (pulled 2% toward the face centre c).
+func lightSamples(f texFit, n Vec, d float64, c Vec) []Vec {
+	smn, smx, tmn, tmx := f.ex[0][0], f.ex[0][1], f.ex[1][0], f.ex[1][1]
+	if (smx-smn)*16 > 256 || (tmx-tmn)*16 > 256 {
+		panic("bad extents")
+	}
+	w, h := smx-smn+1, tmx-tmn+1
+	sv, tv := f.sv, f.tv
+	Minv := inv3([3][3]float64{{sv[0], sv[1], sv[2]}, {tv[0], tv[1], tv[2]}, {n[0], n[1], n[2]}})
+	P := make([]Vec, 0, w*h)
+	for j := range h {
+		for i := range w {
+			rhs := Vec{float64(i+smn)*16 - f.so, float64(j+tmn)*16 - f.to, d}
+			p := Vec{rhs.Dot(Vec(Minv[0])), rhs.Dot(Vec(Minv[1])), rhs.Dot(Vec(Minv[2]))} // numpy rhs @ Minv.T
+			p = p.Add(c.Sub(p).Mul(0.02))
+			P = append(P, p.Add(lightOfs))
+		}
+	}
+	return P
+}
+
+func emitFace(poly Poly, n Vec, d float64, tex *Tex) int {
+	c, dedup := faceWinding(poly, n)
 	pidx, flip := planeIndex(n, d)
 	side := 0
 	if flip {
@@ -342,71 +435,12 @@ func emitFace(poly Poly, n Vec, d float64, tex *Tex) int {
 	for i, v := range dedup {
 		vs[i] = verts[v]
 	}
-	base := tex
-	var t *Tex
-	var ex [2][2]int
-	var sv, tv Vec
-	var so, to float64
-	ok := false
-	for _, nudge := range []float64{0, 0.05, -0.05, 0.11, -0.11, 0.23, -0.23, 0.37} {
-		t = &Tex{Name: base.Name, S: base.S, T: base.T}
-		t.S[3] += nudge
-		t.T[3] += nudge
-		sv, tv = Vec{t.S[0], t.S[1], t.S[2]}, Vec{t.T[0], t.T[1], t.T[2]}
-		so, to = t.S[3], t.T[3]
-		ok = true
-		for k, ax := range []struct {
-			v   Vec
-			off float64
-		}{{sv, so}, {tv, to}} {
-			mn, mx := math.Inf(1), math.Inf(-1)
-			mn32, mx32 := float32(math.Inf(1)), float32(math.Inf(-1))
-			v32 := [3]float32{float32(ax.v[0]), float32(ax.v[1]), float32(ax.v[2])}
-			for _, p := range vs {
-				x := p.DotM(ax.v) + ax.off // numpy vs @ vec (gemv)
-				mn, mx = math.Min(mn, x), math.Max(mx, x)
-				x32 := float32(float32(float32(float32(p[0])*v32[0])+float32(float32(p[1])*v32[1]))+float32(float32(p[2])*v32[2])) + float32(ax.off)
-				if x32 < mn32 {
-					mn32 = x32
-				}
-				if x32 > mx32 {
-					mx32 = x32
-				}
-			}
-			a, b := int(math.Floor(mn/16)), int(math.Ceil(mx/16))
-			a32, b32 := int(math.Floor(float64(mn32)/16)), int(math.Ceil(float64(mx32)/16))
-			margin := math.Min(math.Abs(mn/16-pyRoundInt(mn/16)), math.Abs(mx/16-pyRoundInt(mx/16)))
-			if a != a32 || b != b32 || (margin > 0 && margin < 1e-3) {
-				ok = false
-			}
-			ex[k] = [2]int{a, b}
-		}
-		if ok {
-			break
-		}
-	}
-	if !ok {
-		extentMismatch++
-	}
-	ti := texinfoIndex(t)
-	smn, smx, tmn, tmx := ex[0][0], ex[0][1], ex[1][0], ex[1][1]
-	if (smx-smn)*16 > 256 || (tmx-tmn)*16 > 256 {
-		panic("bad extents")
-	}
-	w, h := smx-smn+1, tmx-tmn+1
-	Minv := inv3([3][3]float64{{sv[0], sv[1], sv[2]}, {tv[0], tv[1], tv[2]}, {n[0], n[1], n[2]}})
-	P := make([]Vec, 0, w*h)
-	for j := range h {
-		for i := range w {
-			rhs := Vec{float64(i+smn)*16 - so, float64(j+tmn)*16 - to, d}
-			p := Vec{rhs.Dot(Vec(Minv[0])), rhs.Dot(Vec(Minv[1])), rhs.Dot(Vec(Minv[2]))} // numpy rhs @ Minv.T
-			p = p.Add(c.Sub(p).Mul(0.02))
-			P = append(P, p.Add(lightOfs))
-		}
-	}
+	f := fitTexture(vs, tex)
+	ti := texinfoIndex(f.t)
+	P := lightSamples(f, n, d, c)
 	lofs := len(lightdata)
-	lightdata = append(lightdata, make([]byte, w*h*3)...)
-	pending = append(pending, Pending{lofs, P, n, strings.ToUpper(t.Name)})
+	lightdata = append(lightdata, make([]byte, len(P)*3)...)
+	pending = append(pending, Pending{lofs, P, n, strings.ToUpper(f.t.Name)})
 	dfaces = append(dfaces, DFace{pidx, side, first, len(dedup), ti, lofs, false})
 	return len(dfaces) - 1
 }
@@ -533,21 +567,21 @@ func outsideWorld(p Vec) bool {
 	return false
 }
 
-func compileModel(brushes []Brush, isWorld, noclip bool) Model {
-	var mn, mx Vec
-	var solid SolidFn
-	set := newBrushSet(brushes)
+// modelBounds returns a model's bounds and its solidity test (the world also counts outside the world box).
+func modelBounds(brushes []Brush, isWorld bool, set *brushSet) (Vec, Vec, SolidFn) {
 	if isWorld {
-		mn, mx = WMIN, WMAX
-		solid = func(p Vec) bool { return outsideWorld(p) || set.inside(p) }
-	} else {
-		var pts []Vec
-		for _, b := range brushes {
-			pts = append(pts, windingPoints(brushWindings(b))...)
-		}
-		mn, mx = bounds(pts)
-		solid = set.inside
+		return WMIN, WMAX, func(p Vec) bool { return outsideWorld(p) || set.inside(p) }
 	}
+	var pts []Vec
+	for _, b := range brushes {
+		pts = append(pts, windingPoints(brushWindings(b))...)
+	}
+	mn, mx := bounds(pts)
+	return mn, mx, set.inside
+}
+
+// hasVisibleFaces: some brush side is textured with something other than AAATRIGGER.
+func hasVisibleFaces(brushes []Brush) bool {
 	hasFaces := false
 	for _, b := range brushes {
 		for _, p := range b {
@@ -556,11 +590,36 @@ func compileModel(brushes []Brush, isWorld, noclip bool) Model {
 			}
 		}
 	}
+	return hasFaces
+}
+
+// clipHullTree builds clip hull h's tree: brushes expanded by the hull's player box.
+func clipHullTree(brushes []Brush, h int, isWorld bool, mn, mx Vec) *Node {
+	eb := make([]Brush, len(brushes))
+	for i, b := range brushes {
+		eb[i] = expandBrush(b, HULLS[h][0], HULLS[h][1])
+	}
+	es := newBrushSet(eb)
+	var hs SolidFn
+	var hmn, hmx Vec
+	if isWorld {
+		hs = func(p Vec) bool { return outsideWorld(p) || es.inside(p) }
+		hmn, hmx = WMIN, WMAX
+	} else {
+		hs = es.inside
+		hmn, hmx = mn.Sub(Vec{128, 128, 128}), mx.Add(Vec{128, 128, 128})
+	}
+	hv := clipToBox(visibleFaces(eb, hs), hmn, hmx)
+	return buildTree(hv, boxRegion(hmn, hmx), hs)
+}
+
+// buildHullTrees builds the render tree and (unless noclip) the three clip hull trees concurrently. They are
+// pure; the caller writes them afterwards in the original order.
+func buildHullTrees(brushes []Brush, isWorld, noclip bool, mn, mx Vec, solid SolidFn) []*Node {
 	bmn, bmx := mn, mx
 	if !isWorld {
 		bmn, bmx = mn.Sub(Vec{64, 64, 64}), mx.Add(Vec{64, 64, 64})
 	}
-	// build all hull trees concurrently (pure); write them afterwards in the original order
 	trees := make([]*Node, 4)
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -574,37 +633,31 @@ func compileModel(brushes []Brush, isWorld, noclip bool) Model {
 			wg.Add(1)
 			go func(h int) {
 				defer wg.Done()
-				eb := make([]Brush, len(brushes))
-				for i, b := range brushes {
-					eb[i] = expandBrush(b, HULLS[h][0], HULLS[h][1])
-				}
-				es := newBrushSet(eb)
-				var hs SolidFn
-				var hmn, hmx Vec
-				if isWorld {
-					hs = func(p Vec) bool { return outsideWorld(p) || es.inside(p) }
-					hmn, hmx = WMIN, WMAX
-				} else {
-					hs = es.inside
-					hmn, hmx = mn.Sub(Vec{128, 128, 128}), mx.Add(Vec{128, 128, 128})
-				}
-				hv := clipToBox(visibleFaces(eb, hs), hmn, hmx)
-				trees[h+1] = buildTree(hv, boxRegion(hmn, hmx), hs)
+				trees[h+1] = clipHullTree(brushes, h, isWorld, mn, mx)
 			}(h)
 		}
 	}
 	wg.Wait()
+	return trees
+}
+
+// stripFaces drops every node's faces (a model with nothing visible, like a trigger).
+func stripFaces(nd *Node) {
+	if !nd.Leaf {
+		nd.On = nil
+		stripFaces(nd.Front)
+		stripFaces(nd.Back)
+	}
+}
+
+func compileModel(brushes []Brush, isWorld, noclip bool) Model {
+	set := newBrushSet(brushes)
+	mn, mx, solid := modelBounds(brushes, isWorld, set)
+	hasFaces := hasVisibleFaces(brushes)
+	trees := buildHullTrees(brushes, isWorld, noclip, mn, mx, solid)
 	tree := trees[0]
 	if !hasFaces {
-		var strip func(*Node)
-		strip = func(nd *Node) {
-			if !nd.Leaf {
-				nd.On = nil
-				strip(nd.Front)
-				strip(nd.Back)
-			}
-		}
-		strip(tree)
+		stripFaces(tree)
 	}
 	firstFace := len(dfaces)
 	leafStart := len(dleafs)
@@ -632,15 +685,9 @@ func compileModel(brushes []Brush, isWorld, noclip bool) Model {
 func pyG(x float64) string { return strconv.FormatFloat(x, 'g', 6, 64) }
 
 // ------------------------------------------------------------------ main.
-func main() {
-	if len(os.Args) != 4 {
-		fmt.Fprintln(os.Stderr, "usage: bspc in.map in.wad out.bsp")
-		os.Exit(2)
-	}
-	MAP, WAD, OUT := os.Args[1], os.Args[2], os.Args[3]
-	t0 := time.Now()
-	ents := parseMap(MAP)
-	world := ents[0]
+
+// readEmissive reads the worldspawn's `_emissive` list ("TEXNAME:brightness,...").
+func readEmissive(world *Entity) {
 	for _, kv := range world.KV {
 		if kv[0] == "_emissive" && kv[1] != "" {
 			for item := range strings.SplitSeq(kv[1], ",") {
@@ -650,14 +697,11 @@ func main() {
 			}
 		}
 	}
-	var all []Vec
-	for _, b := range world.Brushes {
-		all = append(all, windingPoints(brushWindings(b))...)
-	}
-	WMIN, WMAX = bounds(all)
+}
 
-	dleafs = append(dleafs, &DLeaf{Contents: -2})
-	wad, err := os.ReadFile(WAD)
+// loadWad indexes the WAD's textures by upper-case name.
+func loadWad(path string) {
+	wad, err := os.ReadFile(path)
 	if err != nil {
 		panic(err)
 	}
@@ -670,12 +714,61 @@ func main() {
 		name := string(bytes.SplitN(e[16:32], []byte{0}, 2)[0])
 		wadtex[strings.ToUpper(name)] = wad[pos : pos+dsz]
 	}
+}
 
-	fmt.Println("world...")
-	models := []Model{compileModel(world.Brushes, true, false)}
-	dleafs = append(dleafs, &DLeaf{Contents: -1})
-	emptyShared = len(dleafs) - 1
+// moveToOrigin handles a brush entity's ORIGIN brushes: the rest of its brushes (and their texture offsets)
+// are moved so the origin brushes' centre becomes (0, 0, 0), and that centre becomes the entity's origin.
+// It returns the brushes to compile and the updated key/values, or the inputs unchanged without ORIGIN brushes.
+func moveToOrigin(brs []Brush, kv [][2]string) ([]Brush, [][2]string) {
+	var org, rest []Brush
+	for _, b := range brs {
+		isOrg := true
+		for _, p := range b {
+			if strings.ToUpper(p.Tex.Name) != "ORIGIN" {
+				isOrg = false
+			}
+		}
+		if isOrg {
+			org = append(org, b)
+		} else {
+			rest = append(rest, b)
+		}
+	}
+	if len(org) == 0 {
+		return brs, kv
+	}
+	var pts []Vec
+	for _, b := range org {
+		pts = append(pts, windingPoints(brushWindings(b))...)
+	}
+	mn, mx := bounds(pts)
+	oc := npRoundVec(mn.Add(mx).Div(2), 3)
+	var moved []Brush
+	for _, b := range rest {
+		nb := make(Brush, len(b))
+		for i, p := range b {
+			t := *p.Tex
+			t.S[3] += Vec{t.S[0], t.S[1], t.S[2]}.Dot(oc)
+			t.T[3] += Vec{t.T[0], t.T[1], t.T[2]}.Dot(oc)
+			nb[i] = Plane{p.N, p.D - p.N.Dot(oc), &t}
+		}
+		moved = append(moved, nb)
+	}
+	var nkv [][2]string
+	for _, p := range kv {
+		if p[0] != "origin" {
+			nkv = append(nkv, p)
+		}
+	}
+	nkv = append(nkv, [2]string{"origin", pyG(oc[0]) + " " + pyG(oc[1]) + " " + pyG(oc[2])})
+	lightOfs = oc
+	return moved, nkv
+}
 
+// compileEntities compiles every brush entity into a model (after the world, models[0]) and returns the
+// entity lump text, NUL-terminated.
+func compileEntities(ents []*Entity, models *[]Model) []byte {
+	world := ents[0]
 	var entText strings.Builder
 	for _, e := range ents {
 		var kv [][2]string
@@ -689,53 +782,12 @@ func main() {
 		} else if len(e.Brushes) > 0 {
 			cls := e.Get("classname")
 			fmt.Println(cls, "...")
-			brs := e.Brushes
-			var org, rest []Brush
-			for _, b := range brs {
-				isOrg := true
-				for _, p := range b {
-					if strings.ToUpper(p.Tex.Name) != "ORIGIN" {
-						isOrg = false
-					}
-				}
-				if isOrg {
-					org = append(org, b)
-				} else {
-					rest = append(rest, b)
-				}
-			}
-			if len(org) > 0 {
-				var pts []Vec
-				for _, b := range org {
-					pts = append(pts, windingPoints(brushWindings(b))...)
-				}
-				mn, mx := bounds(pts)
-				oc := npRoundVec(mn.Add(mx).Div(2), 3)
-				brs = nil
-				for _, b := range rest {
-					nb := make(Brush, len(b))
-					for i, p := range b {
-						t := *p.Tex
-						t.S[3] += Vec{t.S[0], t.S[1], t.S[2]}.Dot(oc)
-						t.T[3] += Vec{t.T[0], t.T[1], t.T[2]}.Dot(oc)
-						nb[i] = Plane{p.N, p.D - p.N.Dot(oc), &t}
-					}
-					brs = append(brs, nb)
-				}
-				var nkv [][2]string
-				for _, p := range kv {
-					if p[0] != "origin" {
-						nkv = append(nkv, p)
-					}
-				}
-				nkv = append(nkv, [2]string{"origin", pyG(oc[0]) + " " + pyG(oc[1]) + " " + pyG(oc[2])})
-				kv = nkv
-				lightOfs = oc
-			}
+			var brs []Brush
+			brs, kv = moveToOrigin(e.Brushes, kv)
 			noclip := cls == "func_illusionary" || cls == "func_rotating"
-			models = append(models, compileModel(brs, false, noclip))
+			*models = append(*models, compileModel(brs, false, noclip))
 			lightOfs = Vec{}
-			kv = append(kv, [2]string{"model", fmt.Sprintf("*%d", len(models)-1)})
+			kv = append(kv, [2]string{"model", fmt.Sprintf("*%d", len(*models)-1)})
 		}
 		entText.WriteString("{\n")
 		for _, p := range kv {
@@ -743,7 +795,33 @@ func main() {
 		}
 		entText.WriteString("}\n")
 	}
-	entities := append([]byte(entText.String()), 0)
+	return append([]byte(entText.String()), 0)
+}
+
+func main() {
+	if len(os.Args) != 4 {
+		fmt.Fprintln(os.Stderr, "usage: bspc in.map in.wad out.bsp")
+		os.Exit(2)
+	}
+	MAP, WAD, OUT := os.Args[1], os.Args[2], os.Args[3]
+	t0 := time.Now()
+	ents := parseMap(MAP)
+	world := ents[0]
+	readEmissive(world)
+	var all []Vec
+	for _, b := range world.Brushes {
+		all = append(all, windingPoints(brushWindings(b))...)
+	}
+	WMIN, WMAX = bounds(all)
+
+	dleafs = append(dleafs, &DLeaf{Contents: -2})
+	loadWad(WAD)
+
+	fmt.Println("world...")
+	models := []Model{compileModel(world.Brushes, true, false)}
+	dleafs = append(dleafs, &DLeaf{Contents: -1})
+	emptyShared = len(dleafs) - 1
+	entities := compileEntities(ents, &models)
 
 	lights := collectLights(ents)
 	fmt.Printf("geometry done %.1fs, %d faces, %d lights\n", time.Since(t0).Seconds(), len(dfaces), len(lights))
@@ -810,24 +888,27 @@ func u32(v int) uint32 {
 	return uint32(v)
 }
 
-func pack(entities []byte, models []Model) []byte {
-	le := binary.LittleEndian
-	var L [15][]byte
-	w := func(i int, vals ...any) {
-		var b bytes.Buffer
-		for _, v := range vals {
-			// Writing to a bytes.Buffer only fails for a type binary.Write can't encode; skipping it
-			// would silently shift every later field in the lump, so stop instead.
-			if err := binary.Write(&b, le, v); err != nil {
-				panic(err)
-			}
+// lumpWriter collects the 15 BSP lumps as little-endian bytes.
+type lumpWriter [15][]byte
+
+// w appends fixed-width values to lump i.
+func (lw *lumpWriter) w(i int, vals ...any) {
+	var b bytes.Buffer
+	for _, v := range vals {
+		// Writing to a bytes.Buffer only fails for a type binary.Write can't encode; skipping it
+		// would silently shift every later field in the lump, so stop instead.
+		if err := binary.Write(&b, binary.LittleEndian, v); err != nil {
+			panic(err)
 		}
-		L[i] = append(L[i], b.Bytes()...)
 	}
-	L[0] = entities
-	for _, p := range dplanes {
-		w(1, float32(p.N[0]), float32(p.N[1]), float32(p.N[2]), float32(p.D), i32(p.Typ))
-	}
+	lw[i] = append(lw[i], b.Bytes()...)
+}
+
+func fl(x float64) int16 { return s16(math.Floor(x)) }
+func cl(x float64) int16 { return s16(math.Ceil(x)) }
+
+// textures writes lump 2, after adding the missing frames of animated textures (+1name, +2name, ...).
+func (lw *lumpWriter) textures() {
 	for _, nm := range append([]string(nil), texNames...) {
 		if strings.HasPrefix(nm, "+0") {
 			for k := 1; k < 10; k++ {
@@ -841,26 +922,25 @@ func pack(entities []byte, models []Model) []byte {
 		}
 	}
 	hdr := 4 + 4*len(texNames)
-	w(2, i32(len(texNames)))
+	lw.w(2, i32(len(texNames)))
 	pos := hdr
 	for _, nm := range texNames {
-		w(2, i32(pos))
+		lw.w(2, i32(pos))
 		pos += len(wadtex[nm])
 	}
 	for _, nm := range texNames {
-		L[2] = append(L[2], wadtex[nm]...)
+		lw[2] = append(lw[2], wadtex[nm]...)
 	}
-	for _, v := range verts {
-		w(3, float32(v[0]), float32(v[1]), float32(v[2]))
-	}
-	fl := func(x float64) int16 { return s16(math.Floor(x)) }
-	cl := func(x float64) int16 { return s16(math.Ceil(x)) }
+}
+
+// tree writes the render tree, texinfo and faces: lumps 5 (nodes), 6 (texinfo) and 7 (faces).
+func (lw *lumpWriter) tree() {
 	for _, n := range dnodes {
-		w(5, i32(n.Plane), i16(n.Children[0]), i16(n.Children[1]), fl(n.Mins[0]), fl(n.Mins[1]), fl(n.Mins[2]),
+		lw.w(5, i32(n.Plane), i16(n.Children[0]), i16(n.Children[1]), fl(n.Mins[0]), fl(n.Mins[1]), fl(n.Mins[2]),
 			cl(n.Maxs[0]), cl(n.Maxs[1]), cl(n.Maxs[2]), u16(n.FirstFace), u16(n.NumFaces))
 	}
 	for _, t := range texinfos {
-		w(6, float32(t.S[0]), float32(t.S[1]), float32(t.S[2]), float32(t.S[3]),
+		lw.w(6, float32(t.S[0]), float32(t.S[1]), float32(t.S[2]), float32(t.S[3]),
 			float32(t.T[0]), float32(t.T[1]), float32(t.T[2]), float32(t.T[3]), i32(t.Miptex), i32(t.Flag))
 	}
 	for _, f := range dfaces {
@@ -868,34 +948,36 @@ func pack(entities []byte, models []Model) []byte {
 		if f.Sky {
 			st = [4]byte{255, 255, 255, 255}
 		}
-		w(7, i16(f.Plane), i16(f.Side), i32(f.FirstEdge), i16(f.NumEdges), i16(f.Texinfo), st, i32(f.LightOfs))
+		lw.w(7, i16(f.Plane), i16(f.Side), i32(f.FirstEdge), i16(f.NumEdges), i16(f.Texinfo), st, i32(f.LightOfs))
 	}
-	L[8] = lightdata
+}
+
+// leaves writes lumps 9 (clip nodes), 10 (leafs), 11 (marksurfaces), 12 (edges) and 13 (surfedges).
+func (lw *lumpWriter) leaves() {
 	for _, c := range dclip {
-		w(9, i32(c.Plane), i16(c.Children[0]), i16(c.Children[1]))
+		lw.w(9, i32(c.Plane), i16(c.Children[0]), i16(c.Children[1]))
 	}
 	for _, lf := range dleafs {
-		w(10, i32(lf.Contents), int32(-1), fl(lf.Mins[0]), fl(lf.Mins[1]), fl(lf.Mins[2]),
+		lw.w(10, i32(lf.Contents), int32(-1), fl(lf.Mins[0]), fl(lf.Mins[1]), fl(lf.Mins[2]),
 			cl(lf.Maxs[0]), cl(lf.Maxs[1]), cl(lf.Maxs[2]), u16(lf.First), u16(lf.Num), [4]byte{})
 	}
 	for _, m := range marksurf {
-		w(11, u16(m))
+		lw.w(11, u16(m))
 	}
 	for _, e := range edges {
-		w(12, u16(e[0]), u16(e[1]))
+		lw.w(12, u16(e[0]), u16(e[1]))
 	}
 	for _, s := range surfedges {
-		w(13, i32(s))
+		lw.w(13, i32(s))
 	}
-	for _, m := range models {
-		w(14, float32(m.Mins[0]), float32(m.Mins[1]), float32(m.Mins[2]), float32(m.Maxs[0]), float32(m.Maxs[1]), float32(m.Maxs[2]),
-			float32(0), float32(0), float32(0), i32(m.Heads[0]), i32(m.Heads[1]), i32(m.Heads[2]), i32(m.Heads[3]),
-			i32(m.Visleafs), i32(m.FirstFace), i32(m.NumFaces))
-	}
+}
+
+// file lays the lumps out 4-byte aligned after the header and fills in the lump directory.
+func (lw *lumpWriter) file() []byte {
 	var buf bytes.Buffer
 	buf.Write(make([]byte, 4+15*8)) // header: version + 15 lump directory entries, filled in below
 	var info [30]uint32
-	for i, data := range L {
+	for i, data := range lw {
 		for buf.Len()%4 != 0 {
 			buf.WriteByte(0)
 		}
@@ -903,9 +985,31 @@ func pack(entities []byte, models []Model) []byte {
 		buf.Write(data)
 	}
 	out := buf.Bytes()
+	le := binary.LittleEndian
 	le.PutUint32(out[0:4], 30)
 	for i, v := range info {
 		le.PutUint32(out[4+4*i:8+4*i], v)
 	}
 	return out
+}
+
+func pack(entities []byte, models []Model) []byte {
+	var lw lumpWriter
+	lw[0] = entities
+	for _, p := range dplanes {
+		lw.w(1, float32(p.N[0]), float32(p.N[1]), float32(p.N[2]), float32(p.D), i32(p.Typ))
+	}
+	lw.textures()
+	for _, v := range verts {
+		lw.w(3, float32(v[0]), float32(v[1]), float32(v[2]))
+	}
+	lw.tree()
+	lw[8] = lightdata
+	lw.leaves()
+	for _, m := range models {
+		lw.w(14, float32(m.Mins[0]), float32(m.Mins[1]), float32(m.Mins[2]), float32(m.Maxs[0]), float32(m.Maxs[1]), float32(m.Maxs[2]),
+			float32(0), float32(0), float32(0), i32(m.Heads[0]), i32(m.Heads[1]), i32(m.Heads[2]), i32(m.Heads[3]),
+			i32(m.Visleafs), i32(m.FirstFace), i32(m.NumFaces))
+	}
+	return lw.file()
 }

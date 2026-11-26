@@ -58,7 +58,7 @@ linters:
       min-complexity: 9         # nested ifs; flags 9 and up (worst 8: satisfy's holdout branch)
     funlen:
       lines: -1                 # statement count is the meaningful size measure
-      statements: 101           # (BSP.check 101, Parse 96, emitFace 89)
+      statements: 53            # (buildGraph 53, compiler main 52, splitRegion 46)
       ignore-comments: true
     gosec:
       excludes:
