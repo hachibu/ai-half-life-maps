@@ -70,6 +70,31 @@ jobs:
             echo "maps=$M" >> "$GITHUB_OUTPUT"
           fi
 
+  placeholder:
+    # Post a "rendering" placeholder in the screenshot comment as soon as CI starts; the screenshots job below
+    # finds the same comment (by its marker) and replaces it with the before/after shots.
+    needs: plan
+    if: needs.plan.outputs.maps != '[]' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      N: ${{ github.event.pull_request.number }}
+      MAPS: ${{ needs.plan.outputs.maps }}
+    steps:
+      - name: Post or update the screenshot comment with a placeholder
+        run: |
+          RUN="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          LIST=$(echo "$MAPS" | jq -r 'map("`" + . + "`") | join(", ")')
+          printf '%s\n' '<!-- map-previews -->' '## Screenshots' '' \
+            "⏳ **Rendering previews…** CI is compiling $LIST with full VIS and full lighting, then rendering every view." \
+            "This comment is replaced with before/after screenshots when that finishes (usually a few minutes; [run]($RUN))." \
+            > comment.md
+          ID=$(gh api "repos/$GITHUB_REPOSITORY/issues/$N/comments" --paginate \
+               --jq '.[] | select(.body | startswith("<!-- map-previews -->")) | .id' | head -1)
+          if [ -n "$ID" ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$ID" -F body=@comment.md >/dev/null
+          else gh api "repos/$GITHUB_REPOSITORY/issues/$N/comments" -F body=@comment.md >/dev/null; fi
+
   build:
     needs: plan
     if: needs.plan.outputs.maps != '[]'
