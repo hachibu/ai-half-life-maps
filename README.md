@@ -1,9 +1,9 @@
 # ai-half-life-maps
 
-Half-Life 1 deathmatch maps built by an AI agent (Claude) when its humans ask, with deterministic checks
-gating every merge. Each map is described in code and compiled by our own BSP compiler, **written in Go**. No
-level editor is needed, and every build is checked automatically by Go tools (engine limits, spawns, wiring,
-walkable routes, playability score).
+Half-Life 1 deathmatch maps built by an AI agent (Claude) when its human asks. Each map is described in
+Python code and compiled with [SDHLT](https://github.com/seedee/SDHLT), the open-source GoldSrc compiler suite,
+with full visibility and full lighting. No level editor is needed, and every build is checked automatically by
+our Go tools (engine limits, spawns, wiring, walkable routes, playability score, screenshots).
 
 ## Maps
 
@@ -25,24 +25,28 @@ README (`maps/<name>/README.md`) describes it with screenshots.
 
 ## Build
 
-You need Go 1.24+ (checks, previews), Python 3.11+ (map descriptions, packaging), and git, cmake and a C++
-compiler: `make build` fetches and builds [SDHLT](https://github.com/seedee/SDHLT), the GoldSrc map compiler, once.
+You need Python 3.11+ (the map scripts), Go 1.24+ (checks, previews, packaging), and git, cmake and a C++
+compiler: `make build` fetches and builds [SDHLT](https://github.com/seedee/SDHLT) once, at the commit pinned in
+`tools/bsp/sdhlt.rev`.
 
 ```
-pip install -r requirements.txt          # numpy, scipy, pillow (ffmpeg for videos)
+pip install -r requirements.txt          # numpy, scipy, pillow for the map scripts (ffmpeg for videos)
 make bspc                                # build the Go tools into build/bin/ (make build does this for you)
 make sdhlt                               # fetch + build the pinned SDHLT compiler (make build does this for you)
-make build MAP=prairieloop               # describe, compile (SDHLT, quick lighting), package -> build/prairieloop/prairieloop.zip
-make build MAP=prairieloop LIGHT=full    # full lighting, as releases ship (minutes, not seconds)
+make build MAP=prairieloop               # describe, compile (SDHLT: full VIS + full lighting), package -> build/prairieloop/prairieloop.zip
+make build MAP=prairieloop LIGHT=quick VIS=fast   # a quick draft compile while iterating
 make test  MAP=prairieloop               # limits, placements, wiring, walk routes (Go)
 make views MAP=prairieloop               # preview images
 make video MAP=prairieloop               # walkthrough video (maps that have one)
+make quality MAP=prairieloop             # playability score (+ holdout scenarios in CI)
 make lint                                # golangci-lint on the Go code
 make golden                              # SDHLT + scorer output must match the committed golden values
+make readme V=<previews commit>          # refresh the README screenshot sections (and their image version)
 make all                                 # every map
 ```
 
-Each map compiles in seconds to half a minute.
+A full build takes about a minute for prairieloop and three to four minutes for battleaxecombatleague on
+GitHub's runners (mostly lighting); a draft build takes seconds.
 
 ## Contribute (agents and humans)
 
@@ -55,9 +59,11 @@ one map without conflicts.
 ## Layout
 
 ```
-tools/bsp/sdhlt.rev  the SDHLT commit maps are compiled with
-tools/checks/      map checks, route walker and satisfaction scorer (Go)
-tools/             also: map kit, renderer, asset generators, packager (Python)
+tools/bsp/          the pinned SDHLT commit (sdhlt.rev), BSP reader and bspinfo (Go)
+tools/checks/      map checks, route walker and playability scorer (Go)
+tools/render/      preview and video renderer (Go)
+tools/ci/ci/       CI helpers: packaging, quality ratchet, screenshots, README sections (Go)
+tools/mapkit.py    zone-based map assembly; tools/assets/: texture, sky and sprite generators (Python)
 maps/              one folder per map (+ _template)
 go.mod             one Go module for the repo
 build/             generated output (not in git); build/bin/ holds the Go binaries

@@ -75,7 +75,7 @@ maps/<name>/assets.py       that map's own textures/sprites/sounds (when it has 
 maps/<name>/tests/routes.py walk routes that must stay passable
 maps/<name>/tests/views.py  preview camera shots
 maps/<name>/map.toml        name, owner, sky, description
-go.mod                      one Go module for the repo (the compiler and the scorer); lint config: tools/.golangci.yml
+go.mod                      one Go module for the repo (checks, scorer, renderer, CI helpers); lint config: tools/.golangci.yml
 build/                      everything generated (git-ignored); build/bin/ holds the Go binaries
 ```
 
@@ -94,7 +94,9 @@ make golden-update                     # only when you changed that output on pu
 make all                               # build + test every map
 ```
 
-Compile times: seconds to half a minute per map. If something takes minutes, it's a bug.
+Build times on GitHub's runners: about a minute for prairieloop, three to four minutes for battleaxecombatleague
+(mostly full lighting); `LIGHT=quick VIS=fast` drafts take seconds. Full VIS taking minutes means a map lost
+its func_detail split.
 
 ## Working rules we learned the hard way
 
@@ -118,7 +120,7 @@ Each of these cost real time once; the lesson files have the details.
 - **Glowing textures go in the map's EMISSIVE table.** `texlights()` turns it into SDHLT's `info_texlights`
   entity, so lamps, screens and signs light the room in their own colour.
 - **Prefer comparing to existing artifacts over re-running slow reference code.** A BSP built earlier from the
-  same inputs is as good a reference as a fresh 9-minute Python compile.
+  same inputs is as good a reference as a fresh slow rebuild.
 - **Merges trigger releases in merge order.** Two PRs merging close together release in the order they
   landed, not the order they were opened; check which commit a release came from before calling it wrong.
 - **Read the failing check's own message first.** CI's checks name what's wrong (a route, a limit, a blank
