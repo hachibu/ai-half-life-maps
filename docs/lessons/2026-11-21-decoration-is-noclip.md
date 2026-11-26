@@ -1,7 +1,7 @@
 ---
-title: Decoration that players never touch should not cost collision
-tags: [bsp, clipnodes, entities, general]
-gate: checks
+title: Put decoration players never touch in a func_illusionary
+area: geometry
+tags: [battleaxecombatleague]
 source: battleaxecombatleague history
 ---
 

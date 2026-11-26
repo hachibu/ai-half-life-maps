@@ -1,7 +1,7 @@
 ---
-title: Vertical trigger_push only lifts players who jump in
-tags: [entities, trigger_push, prairieloop]
-gate: review
+title: Design vertical trigger_push launch pads for players dropping or jumping in
+area: entities
+tags: [prairieloop]
 source: prairieloop interactive upgrade
 ---
 

@@ -1,7 +1,6 @@
 ---
-title: Look for an existing PR or issue before starting a task
-tags: [planning, github, pipeline, general]
-gate: scope
+title: Search open and recently merged PRs before starting; another session may be on it
+area: workflow
 source: README screenshots task (#11/#12 vs #13)
 ---
 
@@ -16,6 +15,4 @@ Nothing forced a search for existing work, and two sessions can work on the repo
 
 ## Rule
 
-Before claiming or creating a task, search open and recently merged issues and PRs for the same goal
-(`gh api "repos/{owner}/{repo}/issues?state=all&per_page=30"`). If a branch name you want already exists,
-stop and find out why before reusing it.
+Before starting, search open and recently merged PRs for the same goal (`gh api "repos/{owner}/{repo}/pulls?state=all&per_page=30"`). If a branch name you want already exists, find out why before reusing it.

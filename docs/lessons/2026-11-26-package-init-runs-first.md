@@ -1,7 +1,6 @@
 ---
-title: Running a module inside a package imports the package's __init__ first
-tags: [ci, python, tools, general]
-gate: checks
+title: Moving a module into a package makes everything that runs it import the package's `__init__` first
+area: python
 source: tools/ reorganization (PR #64)
 ---
 

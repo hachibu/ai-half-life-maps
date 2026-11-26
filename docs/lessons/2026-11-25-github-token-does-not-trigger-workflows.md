@@ -1,7 +1,6 @@
 ---
-title: Pushes and PRs made with the default Actions token don't start CI
-tags: [ci, github, pipeline]
-gate: checks
+title: Dispatch follow-up workflows explicitly: the Actions token's pushes and merges start nothing
+area: ci
 source: pipeline design
 ---
 
@@ -15,4 +14,4 @@ GitHub blocks GITHUB_TOKEN events from triggering workflows, to prevent loops (w
 
 ## Rule
 
-After the pipeline merges, it dispatches release.yml explicitly. A bot that opens PRs must use a real token (a fine-grained personal access token) so map-check runs.
+automerge.yml merges with the Actions token, so it dispatches release.yml itself. Any workflow that pushes, merges or opens PRs with GITHUB_TOKEN must dispatch what should run next (workflow_dispatch is the exception GitHub allows), or use a personal access token.

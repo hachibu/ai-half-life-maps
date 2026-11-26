@@ -6,7 +6,8 @@
 #   make views MAP=prairieloop     preview images  -> build/prairieloop/previews/
 #   make video MAP=prairieloop     walkthrough mp4 + Discord-size copy (maps with video/walkthrough.py)
 #   make all                       build + test every map
-#   make readme [V=<commit>]       regenerate README screenshot sections; V (a previews commit) makes browsers refetch images
+#   make readme [V=<commit>]       regenerate README screenshot sections (V: a previews commit, so browsers refetch
+#                                  images) and the lessons index in AGENTS.md
 # Long steps run under `timeout` and print progress; a silent process is a bug.
 
 PY      ?= python3
@@ -109,6 +110,7 @@ all:
 
 readme: $(CI)
 	$(CI) readme $(if $(V),--version $(V))
+	$(CI) lessons
 
 # golangci-lint (config: tools/.golangci.yml) covers gofmt, go vet, staticcheck, errcheck, unused and ineffassign.
 # Install v2.15.0, the version CI pins: https://golangci-lint.run/docs/welcome/install/local/

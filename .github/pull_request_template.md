@@ -52,6 +52,10 @@ paste here
 - [ ] every visible change has a named view, listed under Screenshots, and I looked at the images
 - [ ] only original art, names and sounds
 
+## Lessons
+
+<!-- Optional: lessons from AGENTS.md you applied, and any you added or updated in docs/lessons/. -->
+
 ## Not verified / risks
 
 <!-- What you couldn't check, e.g. "not played in the real game", "lift timing only seen in stills".
