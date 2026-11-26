@@ -9,7 +9,6 @@
 #   make video MAP=prairieloop     walkthrough mp4 + Discord-size copy (maps with video/walkthrough.py)
 #   make all                       build + test every map
 #   make readme                    regenerate README screenshot sections (map gallery, per-map grids)
-#   make ledger                    fetch the ledger branch -> build/ledger/ledger.sqlite + LEDGER.md
 #   make quality MAP=x             satisfaction score (+ holdout pass rate when HOLDOUT_KEY is set)
 # Long steps run under `timeout` and print progress; a silent process is a bug.
 
@@ -19,7 +18,7 @@ MAPS    := $(filter-out _template,$(notdir $(wildcard maps/*)))
 BD       = build/$(MAP)
 TIMEOUT ?= 1800
 
-.PHONY: bspc sdhlt lint golden golden-out golden-update build test views video all check-map readme ledger pipeline-test quality holdout-encrypt
+.PHONY: bspc sdhlt lint golden golden-out golden-update build test views video all check-map readme quality holdout-encrypt
 
 check-map:
 	@test -n "$(MAP)" || (echo "usage: make <target> MAP=<one of: $(MAPS)>"; exit 2)
@@ -122,12 +121,6 @@ video: check-map
 
 all:
 	@set -e; for m in $(MAPS); do $(MAKE) build MAP=$$m && $(MAKE) test MAP=$$m; done
-
-ledger:
-	$(PY) -m tools.pipeline.ledger fetch && $(PY) -m tools.pipeline.ledger build && $(PY) -m tools.pipeline.ledger render
-
-pipeline-test:
-	$(PY) -m tools.pipeline.test_gates
 
 quality: check-map $(SATISFY) $(CI)
 	timeout 900 $(CI) quality measure $(MAP)

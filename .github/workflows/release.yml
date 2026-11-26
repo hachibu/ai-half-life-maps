@@ -1,8 +1,8 @@
 name: release
 
-# On every merge to main (the pipeline dispatches this after it merges): build and test every map, publish the
-# playable zips as a GitHub release, store screenshots as the "before" images for pull requests, and run the
-# health gate: green -> new quality baseline in the ledger; red -> an `incident` issue every agent works first.
+# On every merge to main (automerge.yml dispatches this after it merges an agent PR): build and test every map,
+# publish the playable zips as a GitHub release, and store screenshots plus the quality baseline on the
+# `previews` branch as the "before" for pull requests. GitHub emails the owner if it fails.
 on:
   push:
     branches: [main]
@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: write
-  issues: write
 
 jobs:
   plan:
@@ -110,53 +109,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if git fetch origin previews:previews; then git worktree add pv previews; else git worktree add --orphan -b previews pv; fi
           build/bin/ci previews store artifacts pv main
+          build/bin/ci quality baseline artifacts pv/scores/main.json   # what PRs' quality ratchet compares against
           cd pv && git add -A
           git diff --cached --quiet || git commit -qm "Screenshots of main at ${GITHUB_SHA::7}"
           for i in 1 2 3 4 5; do git push origin HEAD:previews && break; sleep $((i * 3)); git pull --rebase -q origin previews; done
-
-  health:
-    needs: build
-    if: always()
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - run: pip install -r requirements.txt
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.24"
-          cache-dependency-path: go.mod
-      - name: Build the CI helpers (tools/ci/ci)
-        run: go build -o build/bin/ci ./tools/ci/ci
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-      - name: Open ledger
-        run: bash tools/ci/ledger_open.sh
-      - name: Healthy -> new quality baseline
-        if: needs.build.result == 'success'
-        run: |
-          build/bin/ci quality baseline artifacts ledger-wt/scores/main.json
-          python -c "from tools.pipeline import ledger; ledger.record('health', 'main', '-', True, '${{ github.sha }}', {})"
-      - name: Broken -> incident
-        if: needs.build.result != 'success'
-        run: |
-          RUN="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-          OPEN=$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&labels=incident" --jq 'length')
-          if [ "$OPEN" = "0" ]; then
-            printf '%s\n' "main failed its build/test after a merge (${GITHUB_SHA::7}). Every agent works on this first." "" \
-              "### Map" "none" "" "### Paths" "maps/" "tools/" "" "### Goal" "Make main build and pass every check again: $RUN" "" \
-              "### Acceptance criteria" "- the release workflow on main is green" "- a lesson in docs/lessons/ explains what broke and the rule that prevents it" "" \
-              "### Depends on" "None" "" "### Priority" "P0" > body.md
-            gh api "repos/$GITHUB_REPOSITORY/issues" -f title="Incident: main is broken at ${GITHUB_SHA::7}" -F body=@body.md \
-              -f "labels[]=incident" -f "labels[]=task" -f "labels[]=ready" > /dev/null
-          fi
-          python -c "from tools.pipeline import ledger; ledger.record('health', 'main', '-', False, '${{ github.sha }}', {'run': '$RUN'})"
-      - name: Save ledger
-        if: always()
-        run: bash tools/ci/ledger_save.sh "health ${GITHUB_SHA::7}"
