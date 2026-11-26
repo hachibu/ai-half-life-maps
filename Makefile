@@ -136,6 +136,9 @@ readme:
 # SHA-256 and the satisfaction result (seed 4242) for the template map and prairieloop (a real map whose metrics
 # aren't all 1.0). Any change to that output has to be deliberate (`make golden-update`) and shows in the PR diff.
 GOLDEN_MAPS = _template prairieloop
+# Only the template's BSP hash is pinned: SDHLT's lighting floats differ in the last bits between C++ compilers
+# and CPUs (prairieloop hashes differently on GitHub's runners than locally), while the tiny template is identical.
+GOLDEN_HASH = _template
 GOLDEN_BSP  = tools/bsp/golden.sha256
 GOLDEN_SAT  = tools/checks/satisfy/golden.json
 GO_OUT      = build/golden
@@ -148,7 +151,7 @@ golden-out: $(SDHLT)/sdHLRAD $(SATISFY)
 	  (cd build/$$m && timeout 900 $(SDHLT)/sdHLCSG -nowadtextures $$m && timeout 900 $(SDHLT)/sdHLBSP $$m \
 	    && timeout 900 $(SDHLT)/sdHLVIS -fast $$m && timeout 900 $(SDHLT)/sdHLRAD -fast -bounce 2 $$m) > /dev/null; \
 	  cp build/$$m/$$m.bsp $(GO_OUT)/$$m.bsp; \
-	  (cd $(GO_OUT) && sha256sum $$m.bsp) >> $(GO_OUT)/golden.sha256; \
+	  case " $(GOLDEN_HASH) " in *" $$m "*) (cd $(GO_OUT) && sha256sum $$m.bsp) >> $(GO_OUT)/golden.sha256;; esac; \
 	  SATISFACTION_SEED=4242 timeout 900 $(SATISFY) $(GO_OUT)/$$m.bsp --json $(GO_OUT)/$$m.sat.json > /dev/null; \
 	done
 	$(PY) -c "import json, sys; out = {}; \
