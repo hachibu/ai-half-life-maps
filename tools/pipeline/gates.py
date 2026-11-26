@@ -17,7 +17,6 @@ from tools.pipeline import model as M
 OK, PENDING, FAIL = "ok", "pending", "fail"
 PR_SECTIONS = ("summary", "what a player will notice", "screenshots", "changes", "check results", "not verified / risks")
 STALE_CLAIM_HOURS = 48
-WIP_LIMIT = 2
 
 
 @dataclass
@@ -57,8 +56,8 @@ def gate_spec(task, closed_numbers, existing_maps):
     return r
 
 
-def gate_claim(task, other_claims, claim_counts):
-    """ready -> claimed: one agent, no overlapping claimed paths (tasks a human assigns aren't WIP-limited)."""
+def gate_claim(task, other_claims):
+    """ready -> claimed: one agent, and no earlier claim on overlapping paths."""
     r = Result("claim")
     if len(task["claimed"]) > 1: r.fail("claimed by more than one agent: %s" % ", ".join(task["claimed"]))
     if not task["claimed"]:
@@ -152,7 +151,7 @@ def gate_tests_ratchet(files, labels):
     return r
 
 
-def gate_review(agent, head_sha, comments, reviews, review_comments, head_date, labels):
+def gate_review(agent, head_sha, comments, reviews, review_comments, labels):
     """built -> reviewed: nobody else asked for changes on this exact commit.
 
     Approval is optional: agents run only when a human asks, so an agent may merge its own PR once every other
@@ -221,7 +220,7 @@ def collect_pr(n):
     return dict(pr=pr, files=files, head=head, agent=M.pr_agent(pr), labels=M.labels(pr), tasks=tasks,
                 runs=runs, jobs=jobs, branch_runs=gh.runs_for_branch(pr["head"]["ref"]),
                 comments=gh.comments(n), reviews=gh.reviews(n), review_comments=gh.review_comments(n),
-                head_date=gh.commit(head)["commit"]["committer"]["date"], lesson_texts=lesson_texts,
+                lesson_texts=lesson_texts,
                 closes_incident=bool(set(M.closes(pr.get("body"))) & incidents))
 
 
@@ -231,7 +230,7 @@ def evaluate_pr(f):
         gate_description(f["pr"], f["files"]),
         gate_checks(f["runs"], f["jobs"], f["head"]),
         gate_tests_ratchet(f["files"], f["labels"]),
-        gate_review(f["agent"], f["head"], f["comments"], f["reviews"], f["review_comments"], f["head_date"], f["labels"]),
+        gate_review(f["agent"], f["head"], f["comments"], f["reviews"], f["review_comments"], f["labels"]),
         gate_learning(f["files"], f["branch_runs"], f["closes_incident"], f["lesson_texts"]),
     ]
 
@@ -301,18 +300,14 @@ def collect_issue(n):
     for t in open_tasks:
         if t["number"] != n and t["claimed"] and mine and claim_time(t) < mine:
             others.append(dict(number=t["number"], agent=t["claimed"][0], paths=t["paths"]))
-    counts = {}
-    for t in open_tasks:
-        for a in t["claimed"]:
-            counts[a] = counts.get(a, 0) + 1
-    return dict(issue=issue, task=task, closed=closed, maps=maps, others=others, counts=counts)
+    return dict(issue=issue, task=task, closed=closed, maps=maps, others=others)
 
 
 def apply_issue(n, f, dry=False):
     from tools.pipeline import gh, ledger
     t = f["task"]
     spec = gate_spec(t, f["closed"], f["maps"])
-    res = [spec] + ([gate_claim(t, f["others"], f["counts"])] if t["claimed"] else [])
+    res = [spec] + ([gate_claim(t, f["others"])] if t["claimed"] else [])
     for x in res:
         print("%-6s %-8s %s" % (x.gate, x.state, "; ".join(x.reasons)))
     if dry or t["state"] != "open":

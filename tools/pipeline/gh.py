@@ -71,10 +71,6 @@ def run_jobs(run_id):
     return r.get("jobs", []) if r else []
 
 
-def commit(sha):
-    return api("repos/{repo}/commits/%s" % sha)
-
-
 def label_events(n):
     return [e for e in api("repos/{repo}/issues/%d/events?per_page=100" % n, paginate=True)
             if e.get("event") in ("labeled", "unlabeled")]
