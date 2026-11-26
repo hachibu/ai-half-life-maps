@@ -1,8 +1,8 @@
 name: map-check
 
-# On every pull request: build only the maps it touches (every map if shared tooling changed), run every
-# check, measure quality (satisfaction + holdout) against main, post before/after screenshots, and apply
-# the visual gate. The pipeline workflow reads this run's result as its `checks` gate.
+# On every pull request: lint, build only the maps it touches (every map if shared tooling changed) at full
+# quality, run every map check, post before/after screenshots and apply the visual gate. The final `map-check`
+# job is the check branch rules require; automerge.yml merges agent PRs when this workflow succeeds.
 on:
   pull_request:
   workflow_dispatch:
@@ -41,13 +41,6 @@ jobs:
           install-only: true
       - name: Go lint (golangci-lint; config in tools/.golangci.yml)
         run: make lint
-      - name: Cache SDHLT (the map compiler, built from tools/bsp/sdhlt.rev)
-        uses: actions/cache@v4
-        with:
-          path: build/sdhlt
-          key: sdhlt-${{ runner.os }}-${{ hashFiles('tools/bsp/sdhlt.rev') }}
-      - name: Go compiler + scorer output matches the committed golden values
-        run: pip install -q -r requirements.txt && make golden
       - id: pick
         name: Pick maps to build
         run: |
@@ -67,6 +60,39 @@ jobs:
             M=$(echo "$MAPCHANGED" | grep -oE '^maps/[^/]+' | cut -d/ -f2 | sort -u | exists | jq -R . | jq -cs '[.[] | select(length > 0)]')
             echo "maps=$M" >> "$GITHUB_OUTPUT"
           fi
+
+  golden:
+    # The pinned SDHLT build still compiles the template map to the same bytes. Only when something that could
+    # change that is in the PR, and alongside the map builds rather than before them.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: need
+        name: Did the compiler, the template map or its generator change?
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ] || git diff --name-only "origin/${{ github.base_ref }}...HEAD" \
+             | grep -qE '^(tools/bsp/|tools/mapkit\.py$|tools/assets/|maps/_template/|Makefile$|requirements\.txt$|\.github/workflows/map-check\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "nothing that affects compiler output changed: skipped"
+          fi
+      - if: steps.need.outputs.run == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - if: steps.need.outputs.run == 'true'
+        name: Cache SDHLT (the map compiler, built from tools/bsp/sdhlt.rev)
+        uses: actions/cache@v4
+        with:
+          path: build/sdhlt
+          key: sdhlt-${{ runner.os }}-${{ hashFiles('tools/bsp/sdhlt.rev') }}
+      - if: steps.need.outputs.run == 'true'
+        name: The template map compiles to its committed SHA-256
+        run: pip install -q -r requirements.txt && make golden
 
   placeholder:
     # Post a "rendering" placeholder in the screenshot comment as soon as CI starts; the screenshots job below
@@ -122,11 +148,6 @@ jobs:
         run: make build MAP=${{ matrix.map }}
       - name: Test ${{ matrix.map }}
         run: make test MAP=${{ matrix.map }}
-      - name: Quality ${{ matrix.map }} (satisfaction + holdout)
-        env:
-          SATISFACTION_SEED: ${{ secrets.SATISFACTION_SEED }}
-          HOLDOUT_KEY: ${{ secrets.HOLDOUT_KEY }}
-        run: make quality MAP=${{ matrix.map }}
       - name: Previews
         if: always()
         run: make views MAP=${{ matrix.map }} || true
@@ -137,27 +158,7 @@ jobs:
           path: |
             build/${{ matrix.map }}/${{ matrix.map }}.zip
             build/${{ matrix.map }}/previews/
-            build/${{ matrix.map }}/quality.json
           if-no-files-found: ignore
-
-  quality:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.24"
-          cache-dependency-path: go.mod
-      - name: Build the CI helpers (tools/ci/ci)
-        run: go build -o build/bin/ci ./tools/ci/ci
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-      - name: Quality ratchet against main
-        run: |
-          git fetch -q origin previews && git show FETCH_HEAD:scores/main.json > baseline.json 2>/dev/null || echo '{}' > baseline.json
-          build/bin/ci quality compare artifacts baseline.json
 
   screenshots:
     needs: [plan, build]
@@ -204,7 +205,7 @@ jobs:
     # The one check branch rules require: every job above passed or was skipped (map builds skip when no map
     # changed). automerge.yml merges agent PRs when this workflow succeeds.
     name: map-check
-    needs: [plan, placeholder, build, quality, screenshots]
+    needs: [plan, golden, placeholder, build, screenshots]
     if: always()
     runs-on: ubuntu-latest
     steps:

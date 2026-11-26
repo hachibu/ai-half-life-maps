@@ -3,7 +3,7 @@
 # same golangci-lint version in .github/workflows/map-check.yml.
 #
 # Output is pinned by `make golden`, so a lint fix must never change a compiled BSP or a score: run
-# `make golden` after fixing anything in tools/bsp/bspc or tools/checks/satisfy.
+# `make golden` after fixing anything that builds the template map.
 version: "2"
 
 linters:
@@ -55,7 +55,7 @@ linters:
     cyclop:
       max-complexity: 57        # branch paths (finalizeLighting 57, BSP.check 52, Parse 36)
     nestif:
-      min-complexity: 9         # nested ifs; flags 9 and up (worst 8: satisfy's holdout branch)
+      min-complexity: 9         # nested ifs; flags 9 and up (the limit sat at the old scorer's worst; lower it when convenient)
     funlen:
       lines: -1                 # statement count is the meaningful size measure
       statements: 93            # (renderer drawFace 93, renderer New 73, renderer Frame 63)

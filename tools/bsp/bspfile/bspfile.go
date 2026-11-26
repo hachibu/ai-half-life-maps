@@ -1,4 +1,4 @@
-// Package bspfile reads a compiled GoldSrc BSP (v30): the structures every Go check, the scorer and the
+// Package bspfile reads a compiled GoldSrc BSP (v30): the structures every Go check and the
 // renderer need, plus the engine-limit and consistency checks the old Python reader (tools/bsp/reader.py)
 // performed, with the same messages.
 package bspfile

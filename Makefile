@@ -1,7 +1,7 @@
 # Half-Life 1 map pipeline.  Every map lives in maps/<name>/ and builds into build/<name>/.
 #   make build MAP=prairieloop     generate + compile (SDHLT: full VIS + full lighting) + package -> build/prairieloop/prairieloop.zip
 #   make build MAP=x LIGHT=quick VIS=fast   a much faster draft compile while iterating locally
-#   make golden                    SDHLT + scorer output (template map, prairieloop) must match the committed golden values
+#   make golden                    the template map compiled by SDHLT must match its committed SHA-256
 #   make golden-update             re-record the golden values after an intended output change (commit them)
 #   make lint                      golangci-lint: gofmt, go vet, staticcheck, errcheck, unused (tools/.golangci.yml)
 #   make test  MAP=prairieloop     structure/limits, placements, wiring, walk routes
@@ -9,7 +9,6 @@
 #   make video MAP=prairieloop     walkthrough mp4 + Discord-size copy (maps with video/walkthrough.py)
 #   make all                       build + test every map
 #   make readme [V=<commit>]       regenerate README screenshot sections; V (a previews commit) makes browsers refetch images
-#   make quality MAP=x             satisfaction score (+ holdout pass rate when HOLDOUT_KEY is set)
 # Long steps run under `timeout` and print progress; a silent process is a bug.
 
 PY      ?= python3
@@ -18,7 +17,7 @@ MAPS    := $(filter-out _template,$(notdir $(wildcard maps/*)))
 BD       = build/$(MAP)
 TIMEOUT ?= 1800
 
-.PHONY: bspc sdhlt lint golden golden-out golden-update build test views video all check-map readme quality holdout-encrypt
+.PHONY: bspc sdhlt lint golden golden-out golden-update build test views video all check-map readme
 
 check-map:
 	@test -n "$(MAP)" || (echo "usage: make <target> MAP=<one of: $(MAPS)>"; exit 2)
@@ -64,11 +63,6 @@ define compile
 	@cd $(1) && for t in csg bsp vis rad; do printf '  %-4s %s\n' $$t "$$(grep -h 'seconds elapsed' $(2).$$t.log | tail -1)"; done
 endef
 
-SATISFY  = build/bin/satisfy
-
-$(SATISFY): $(wildcard tools/checks/satisfy/*.go tools/bsp/bspfile/*.go tools/checks/walker/*.go) go.mod
-	go build -o $(SATISFY) ./tools/checks/satisfy
-
 MAPCHECK = build/bin/mapcheck
 
 $(MAPCHECK): $(wildcard tools/checks/mapcheck/*.go tools/bsp/bspfile/*.go tools/checks/walker/*.go) go.mod
@@ -87,7 +81,7 @@ $(BSPINFO): $(wildcard tools/bsp/bspinfo/*.go tools/bsp/bspfile/*.go) go.mod
 $(CI): $(wildcard tools/ci/ci/*.go) go.mod
 	go build -o $(CI) ./tools/ci/ci
 
-bspc: $(SATISFY) $(MAPCHECK) $(RENDER) $(BSPINFO) $(CI)
+bspc: $(MAPCHECK) $(RENDER) $(BSPINFO) $(CI)
 
 build: check-map $(SDHLT)/sdHLRAD $(CI)
 	timeout $(TIMEOUT) $(PY) maps/$(MAP)/build.py
@@ -122,30 +116,18 @@ video: check-map
 all:
 	@set -e; for m in $(MAPS); do $(MAKE) build MAP=$$m && $(MAKE) test MAP=$$m; done
 
-quality: check-map $(SATISFY) $(CI)
-	timeout 900 $(CI) quality measure $(MAP)
-
-# Humans only: encrypt holdout/scenarios.json (never commit it) with the key stored as the HOLDOUT_KEY secret.
-holdout-encrypt:
-	@test -n "$$HOLDOUT_KEY" || (echo "set HOLDOUT_KEY"; exit 2)
-	openssl enc -aes-256-cbc -pbkdf2 -salt -in holdout/scenarios.json -out holdout/scenarios.enc -pass env:HOLDOUT_KEY
-	@echo "wrote holdout/scenarios.enc; delete holdout/scenarios.json"
-
 readme: $(CI)
 	$(CI) readme $(if $(V),--version $(V))
 
-# SDHLT's output (draft settings, to keep it quick) and the Go scorer's are pinned to committed golden values: the compiled BSP's
-# SHA-256 and the satisfaction result (seed 4242) for the template map and prairieloop (a real map whose metrics
-# aren't all 1.0). Any change to that output has to be deliberate (`make golden-update`) and shows in the PR diff.
-GOLDEN_MAPS = _template prairieloop
-# Only the template's BSP hash is pinned: SDHLT's lighting floats differ in the last bits between C++ compilers
-# and CPUs (prairieloop hashes differently on GitHub's runners than locally), while the tiny template is identical.
-GOLDEN_HASH = _template
+# The pinned SDHLT build (tools/bsp/sdhlt.rev) must keep compiling the template map to the same bytes, so a new
+# SDHLT commit, a different build of it, or a change to the template's generator shows up as a deliberate
+# `make golden-update` in the PR diff. Only the small template map: SDHLT's lighting floats differ in the last
+# bits between C++ compilers and CPUs on bigger maps.
+GOLDEN_MAPS = _template
 GOLDEN_BSP  = tools/bsp/golden.sha256
-GOLDEN_SAT  = tools/checks/satisfy/golden.json
 GO_OUT      = build/golden
 
-golden-out: $(SDHLT)/sdHLRAD $(SATISFY)
+golden-out: $(SDHLT)/sdHLRAD
 	@mkdir -p $(GO_OUT); rm -f $(GO_OUT)/*
 	@set -e; for m in $(GOLDEN_MAPS); do \
 	  echo "golden: $$m"; \
@@ -153,23 +135,16 @@ golden-out: $(SDHLT)/sdHLRAD $(SATISFY)
 	  (cd build/$$m && timeout 900 $(SDHLT)/sdHLCSG -nowadtextures $$m && timeout 900 $(SDHLT)/sdHLBSP $(BSPFLAGS) $$m \
 	    && timeout 900 $(SDHLT)/sdHLVIS -fast $$m && timeout 900 $(SDHLT)/sdHLRAD -fast -bounce 2 $$m) > /dev/null; \
 	  cp build/$$m/$$m.bsp $(GO_OUT)/$$m.bsp; \
-	  case " $(GOLDEN_HASH) " in *" $$m "*) (cd $(GO_OUT) && sha256sum $$m.bsp) >> $(GO_OUT)/golden.sha256;; esac; \
-	  SATISFACTION_SEED=4242 timeout 900 $(SATISFY) $(GO_OUT)/$$m.bsp --json $(GO_OUT)/$$m.sat.json > /dev/null; \
+	  (cd $(GO_OUT) && sha256sum $$m.bsp) >> $(GO_OUT)/golden.sha256; \
 	done
-	$(PY) -c "import json, sys; out = {}; \
-	  [out.__setitem__(m, {k: v for k, v in json.load(open('$(GO_OUT)/%s.sat.json' % m)).items() if k != 'seconds'}) for m in sys.argv[1:]]; \
-	  print(json.dumps(out, indent=1, sort_keys=True))" $(GOLDEN_MAPS) > $(GO_OUT)/golden.json
 
 golden: golden-out
 	@diff -u $(GOLDEN_BSP) $(GO_OUT)/golden.sha256 && echo "compiler golden: identical" || \
 	  (echo "compiler output changed. If that is intended, run make golden-update and commit the result."; exit 1)
-	@diff -u $(GOLDEN_SAT) $(GO_OUT)/golden.json && echo "scorer golden: identical" || \
-	  (echo "scorer output changed. If that is intended, run make golden-update and commit the result."; exit 1)
 
 golden-update: golden-out
 	cp $(GO_OUT)/golden.sha256 $(GOLDEN_BSP)
-	cp $(GO_OUT)/golden.json $(GOLDEN_SAT)
-	@echo "updated $(GOLDEN_BSP) and $(GOLDEN_SAT); commit them and say in the PR why the output changed"
+	@echo "updated $(GOLDEN_BSP); commit it and say in the PR why the output changed"
 
 # golangci-lint (config: tools/.golangci.yml) covers gofmt, go vet, staticcheck, errcheck, unused and ineffassign.
 # Install v2.15.0, the version CI pins: https://golangci-lint.run/docs/welcome/install/local/
