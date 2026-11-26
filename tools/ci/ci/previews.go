@@ -295,7 +295,7 @@ func gate(worktree, prefix, changed string) (int, error) {
 			}
 		}
 	}
-	for _, m := range strings.Fields(changed) {
+	for m := range strings.FieldsSeq(changed) {
 		afterDir, beforeDir := filepath.Join(worktree, prefix, m), filepath.Join(worktree, "main", m)
 		if !exists(afterDir) {
 			bad = append(bad, m+": no screenshots were produced")
