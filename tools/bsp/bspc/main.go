@@ -167,11 +167,6 @@ func texIndex(name string) int {
 	return len(texNames) - 1
 }
 
-func texSize(name string) (int, int) {
-	b := wadtex[strings.ToUpper(name)]
-	return int(binary.LittleEndian.Uint32(b[16:20])), int(binary.LittleEndian.Uint32(b[20:24]))
-}
-
 func texinfoIndex(t *Tex) int {
 	f := func(x float64) string { return strconv.FormatFloat(npRound(x, 5)+0, 'g', -1, 64) }
 	key := strings.ToUpper(t.Name)

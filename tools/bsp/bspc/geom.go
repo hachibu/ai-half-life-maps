@@ -20,7 +20,7 @@ func (a Vec) Mul(s float64) Vec { return Vec{float64(a[0] * s), float64(a[1] * s
 func (a Vec) Div(s float64) Vec { return Vec{a[0] / s, a[1] / s, a[2] / s} }
 func (a Vec) Neg() Vec          { return Vec{-a[0], -a[1], -a[2]} }
 
-// Dot products, each matching the numpy expression it replaces bit for bit (measured; see go/bspc/README.md):
+// Dot products, each matching the numpy expression it replaces bit for bit (measured; see tools/bsp/bspc/README.md):
 //
 //	Dot  = numpy 1-D a @ b (and A @ M.T)  fma(a2,b2, fma(a1,b1, a0*b0))
 //	DotM = numpy 2-D rows @ vector        fma(a2,b2, fma(a0,b0, a1*b1))   (OpenBLAS gemv)
@@ -263,5 +263,3 @@ func argsortStable(keys []float64) []int {
 	sort.SliceStable(idx, func(a, b int) bool { return keys[idx[a]] < keys[idx[b]] })
 	return idx
 }
-
-func floorDiv16(x float64) int { return int(math.Floor(x / 16)) }

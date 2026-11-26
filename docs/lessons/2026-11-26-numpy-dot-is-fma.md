@@ -19,5 +19,5 @@ other orders. The Go code used plain `a0*b0 + a1*b1 + a2*b2`. The last-bit diffe
 ## Rule
 
 When porting numeric code, measure each primitive against the original on thousands of random inputs and
-copy the exact operation order (see go/bspc/README.md). Keep a byte-for-byte parity check in CI
+copy the exact operation order (see tools/bsp/bspc/README.md). Keep a byte-for-byte parity check in CI
 (`make compiler-parity`), and compare every map lump by lump before switching over.

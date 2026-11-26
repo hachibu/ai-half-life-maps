@@ -8,15 +8,27 @@ ARTIFACTS holds one folder per map containing quality.json (the CI artifact layo
 """
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
 from tools.checks import holdout, satisfaction
 
 
+SATISFY = Path("build/bin/satisfy")       # Go port of tools/checks/satisfaction.py (`make bspc`); same scores
+
+
+def satisfaction_score(bsp):
+    if SATISFY.exists():
+        out = Path(bsp).with_suffix(".satisfaction.json")
+        subprocess.run([str(SATISFY), bsp, "--json", str(out)], check=True)
+        return json.loads(out.read_text())
+    return satisfaction.score(bsp)
+
+
 def measure(name):
     bsp = "build/%s/%s.bsp" % (name, name)
-    q = dict(map=name, satisfaction=satisfaction.score(bsp), holdout=holdout.run(name, bsp))
+    q = dict(map=name, satisfaction=satisfaction_score(bsp), holdout=holdout.run(name, bsp))
     Path("build/%s/quality.json" % name).write_text(json.dumps(q, indent=1))
     s = q["satisfaction"]
     print("%s satisfaction %.1f %s | holdout %s" % (name, s["score"], s["metrics"],

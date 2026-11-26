@@ -74,8 +74,8 @@ The repo is laid out so that two agents almost never edit the same file:
 ## Layout
 
 ```
-go/bspc/                    the BSP compiler `make build` uses (Go port; same output as compile.py, ~10-100x faster)
-tools/bsp/compile.py        reference Python compiler (COMPILER=py) (BSP tree, collision hulls, lighting, sky, pivots, animated textures)
+tools/bsp/bspc/             the BSP compiler `make build` uses (Go; same output as compile.py, 10-100x faster)
+tools/bsp/compile.py        its Python twin, kept as the reference (`make build COMPILER=py`)
 tools/bsp/reader.py         reads a compiled .bsp; shared by every check and the renderer
 tools/checks/               structure (engine limits), placements, wiring, walk (route walker)
 tools/render/               preview renderer (+ views.py for a map's preview shots)
@@ -84,7 +84,8 @@ tools/assets/skyfire.py     skybox faces (TGA) + fire sprite
 tools/package.py            builds the valve/ layout, .res file and zip
 tools/ci/previews.py        CI only: stores screenshots, writes the before/after PR comment, visual gate
 tools/ci/quality.py         CI only: satisfaction + holdout measurement and the no-regression ratchet
-tools/checks/satisfaction.py  0-100 playability score from sampled movement (weapon rush, traps, items, spawns)
+tools/checks/satisfy/       the satisfaction scorer CI uses (Go; same scores as satisfaction.py, 10-20x faster)
+tools/checks/satisfaction.py  its Python twin: 0-100 playability score from sampled movement (holdout reuses it)
 tools/checks/holdout.py     human-written encrypted scenarios, run only in CI
 tools/pipeline/             gates, ledger, `next` scheduler, publisher (see docs/pipeline.md)
 docs/lessons/               the knowledge base: one lesson per file, read what `make next` lists
@@ -95,21 +96,49 @@ maps/<name>/assets.py       that map's own textures/sprites/sounds (when it has 
 maps/<name>/tests/routes.py walk routes that must stay passable
 maps/<name>/tests/views.py  preview camera shots
 maps/<name>/map.toml        name, owner, sky, description
-build/                      everything generated (git-ignored)
+go.mod                      one Go module for the repo; every Go program sits next to its Python twin
+build/                      everything generated (git-ignored); build/bin/ holds the Go binaries
 ```
 
 ## Commands
 
 ```
-pip install -r requirements.txt        # numpy, scipy, pillow  (+ ffmpeg for videos)
-make build MAP=<name>                  # generate, compile, package -> build/<name>/<name>.zip
+pip install -r requirements.txt        # numpy, scipy, pillow  (+ ffmpeg for videos); Go 1.24 for the compiler
+make build MAP=<name>                  # generate, compile (Go), package -> build/<name>/<name>.zip
 make test  MAP=<name>                  # structure + limits, placements, wiring, routes
 make views MAP=<name>                  # preview PNGs in build/<name>/previews/
 make video MAP=<name>                  # walkthrough mp4 + Discord-size copy (if the map has video/walkthrough.py)
+make quality MAP=<name>                # satisfaction score (+ holdout pass rate in CI)
+make lint                              # gofmt, go vet, staticcheck
+make compiler-parity                   # Go and Python compiler + scorer must agree exactly
 make all                               # build + test every map
 ```
 
-Compile times: small maps take seconds; big ones take 4–10 minutes (lighting is the slow part).
+Compile times with the Go compiler: seconds to half a minute per map. If something takes minutes, it's a bug
+or you're on the Python path (`COMPILER=py`).
+
+## Working rules we learned the hard way
+
+Each of these cost real time once; the lesson files have the details.
+
+- **Before starting, look for existing work.** Search open and recently merged PRs and issues for the same task.
+  Another session may already have done it (a README task was built twice in parallel once).
+- **Your task's Paths must cover every file your PR touches.** If the work grows, edit the issue's Paths
+  *before* pushing, or the scope gate fails. Claims on overlapping paths lose to the earlier claim; re-add
+  your `claimed:` label once the earlier task closes.
+- **Rebase on the real latest `main` before opening a PR.** In a git worktree, `git fetch origin main` may only
+  update `FETCH_HEAD`: rebase onto `FETCH_HEAD`, and force-push with an explicit lease
+  (`--force-with-lease=<branch>:<sha you expect>`).
+- **Ports must match exactly, and prove it.** numpy's small dot products are fused multiply-adds in specific
+  orders, Python's `math.hypot` is correctly rounded, and `default_rng` is PCG64 via SeedSequence. Measure each
+  primitive against the original on thousands of inputs, compare outputs byte for byte (or field by field),
+  and keep a parity check in CI. See `tools/bsp/bspc/README.md` and docs/lessons.
+- **Prefer comparing to existing artifacts over re-running slow reference code.** A BSP built earlier from the
+  same inputs is as good a reference as a fresh 9-minute Python compile.
+- **Merges trigger releases in merge order.** Two PRs merging close together release in the order they
+  landed, not the order they were opened; check which commit a release came from before calling it wrong.
+- **Ask the gates, not your memory.** When a gate fails, read its reason in the Pipeline comment; it has been
+  right every time so far (scope, claim overlap, ratchet on deleted tests, missing view names).
 
 ## Hard rules (the checks enforce most of these)
 

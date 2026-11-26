@@ -40,14 +40,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.24"
-          cache-dependency-path: go/bspc/go.mod
+          cache-dependency-path: go.mod
       - run: make build MAP=${{ matrix.map }}
       - run: make test MAP=${{ matrix.map }}
       - name: Quality
         env:
           SATISFACTION_SEED: ${{ secrets.SATISFACTION_SEED }}
           HOLDOUT_KEY: ${{ secrets.HOLDOUT_KEY }}
-        run: python -m tools.ci.quality measure ${{ matrix.map }}
+        run: make quality MAP=${{ matrix.map }}
       - run: make views MAP=${{ matrix.map }}
       - uses: actions/upload-artifact@v4
         with:
