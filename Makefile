@@ -2,7 +2,7 @@
 #   make build MAP=prairieloop     generate + compile (Go: tools/bsp/bspc) + package -> build/prairieloop/prairieloop.zip
 #                                  COMPILER=py uses the original Python compiler (tools/bsp/compile.py)
 #   make compiler-parity           Go and Python compiler + scorer must agree exactly on the template map
-#   make lint                      gofmt, go vet, staticcheck (if installed)
+#   make lint                      golangci-lint: gofmt, go vet, staticcheck, errcheck, unused (tools/.golangci.yml)
 #   make test  MAP=prairieloop     structure/limits, placements, wiring, walk routes
 #   make views MAP=prairieloop     preview images  -> build/prairieloop/previews/
 #   make video MAP=prairieloop     walkthrough mp4 + Discord-size copy (maps with video/walkthrough.py)
@@ -106,7 +106,10 @@ compiler-parity: $(BSPC) $(SATISFY)
 	$(PY) -c "import json; g, p = (json.load(open('build/_template/sat_%s.json' % k)) for k in ('go', 'py')); \
 	  ks = ('score', 'metrics', 'samples', 'nodes'); assert all(g[k] == p[k] for k in ks), (g, p); print('scorer parity: identical')"
 
+# golangci-lint (config: tools/.golangci.yml) covers gofmt, go vet, staticcheck, errcheck, unused and ineffassign.
+# Install v2.15.0, the version CI pins: https://golangci-lint.run/docs/welcome/install/local/
 lint:
-	@test -z "$$(gofmt -l tools)" || (echo "gofmt needed:"; gofmt -l tools; exit 1)
-	go vet ./...
-	@if command -v staticcheck >/dev/null; then staticcheck ./...; else echo "staticcheck not installed (CI runs it)"; fi
+	@if command -v golangci-lint >/dev/null; then timeout 600 golangci-lint run -c tools/.golangci.yml ./...; else \
+	  echo "golangci-lint not installed (CI runs it); falling back to gofmt + go vet"; \
+	  test -z "$$(gofmt -l tools)" || (echo "gofmt needed:"; gofmt -l tools; exit 1); \
+	  go vet ./...; fi
