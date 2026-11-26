@@ -8,7 +8,6 @@
 #   make video MAP=prairieloop     walkthrough mp4 + Discord-size copy (maps with video/walkthrough.py)
 #   make all                       build + test every map
 #   make readme                    regenerate README screenshot sections (map gallery, per-map grids)
-#   make next AGENT=claude         the one thing this agent should do now (see docs/pipeline.md)
 #   make ledger                    fetch the ledger branch -> build/ledger/ledger.sqlite + LEDGER.md
 #   make quality MAP=x             satisfaction score (+ holdout pass rate when HOLDOUT_KEY is set)
 # Long steps run under `timeout` and print progress; a silent process is a bug.
@@ -19,7 +18,7 @@ MAPS    := $(filter-out _template,$(notdir $(wildcard maps/*)))
 BD       = build/$(MAP)
 TIMEOUT ?= 1800
 
-.PHONY: bspc lint golden golden-out golden-update build test views video all list check-map readme next ledger pipeline-test quality holdout-encrypt
+.PHONY: bspc lint golden golden-out golden-update build test views video all list check-map readme ledger pipeline-test quality holdout-encrypt
 
 check-map:
 	@test -n "$(MAP)" || (echo "usage: make <target> MAP=<one of: $(MAPS)>"; exit 2)
@@ -68,10 +67,6 @@ video: check-map
 
 all:
 	@set -e; for m in $(MAPS); do $(MAKE) build MAP=$$m && $(MAKE) test MAP=$$m; done
-
-next:
-	@test -n "$(AGENT)" || (echo "usage: make next AGENT=claude|codex"; exit 2)
-	$(PY) -m tools.pipeline.next $(AGENT)
 
 ledger:
 	$(PY) -m tools.pipeline.ledger fetch && $(PY) -m tools.pipeline.ledger build && $(PY) -m tools.pipeline.ledger render

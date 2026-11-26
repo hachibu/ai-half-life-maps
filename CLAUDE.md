@@ -1,1 +1,1 @@
-Follow AGENTS.md - it is the single rulebook for every agent in this repo (Claude and Codex).
+Follow AGENTS.md - it is the single rulebook for agents in this repo.

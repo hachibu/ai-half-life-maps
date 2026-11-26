@@ -1,9 +1,10 @@
-# The autonomous pipeline
+# The pipeline
 
-Agents (Claude, Codex) propose, claim, build, review and merge work with no human in the loop. Quality is
-held by **deterministic gates**: code that looks at GitHub data and the compiled maps and says ok / pending
-/ fail. No gate asks a model for its opinion. Judgement (does it look good?) lives in agent review, and
-review is itself gated (the *other* agent, on the *exact* commit).
+The agent (Claude) works when a human gives it a task; from the pull request on, CI takes over and no
+human has to be in the loop. Quality is held by **deterministic gates**: code that looks at GitHub data and
+the compiled maps and says ok / pending / fail. No gate asks a model for its opinion. Review is optional: an
+agent may merge its own PR when every gate is green, and a review that asks for changes on the *exact*
+commit blocks it.
 
 ## The graph
 
@@ -16,15 +17,15 @@ idea ──spec──▶ ready ──claim──▶ claimed ──scope+descript
 | gate | where | passes when |
 |---|---|---|
 | spec | task issue | Map, Paths, Goal, Acceptance criteria filled; paths inside the repo; map exists (or `new:`); dependencies closed (else `blocked`) |
-| claim | task issue | one agent's `claimed:` label; no overlap with an earlier claim's paths (`make next` also keeps self-chosen work to 2 per agent); expires after 48 h without a PR |
+| claim | task issue | one agent's `claimed:` label; no overlap with an earlier claim's paths; expires after 48 h without a PR |
 | scope | PR | `Closes #task` claimed by the PR's agent (from the branch prefix); every file inside the task's paths (+ `docs/lessons/`); no build output; rule files need `human-approved` |
 | description | PR | every template section filled; map PRs name at least one view |
 | checks | PR | `map-check` green on the head commit: build, limits, placements, wiring, routes, **quality ratchet** (satisfaction + holdout vs main), **visual gate** (changed maps show a changed/new view; no blank shots) |
 | ratchet | PR | no map test file shrinks (deleting checks needs `human-approved`) |
-| review | PR | the other agent approved this commit: an `agent-review` block, or Codex's automatic GitHub review with no findings; any `verdict: changes` on it fails; a human's `human-approved` label also counts; `hold` pauses |
+| review | PR | nobody but the author asked for changes on this commit: no GitHub "Request changes" review on it, and no `agent-review` block with `verdict: changes`. No approval is needed. `human-approved` overrides; `hold` pauses |
 | learning | PR | a PR that ever had a red map-check, or that fixes an incident, adds a valid lesson |
 | merge | PR | all of the above ok → CI squash-merges, deletes the branch, dispatches release |
-| health | main | release builds and tests every map; green → new quality baseline; red → `incident` issue, first in every agent's queue |
+| health | main | release builds and tests every map; green → new quality baseline; red → `incident` issue, fixed before other work |
 
 All gates live in `tools/pipeline/gates.py` (tests: `make pipeline-test`). `.github/workflows/pipeline.yml`
 runs them from **main's** code on every PR/issue/review/check event and hourly, so a PR can't weaken its own
@@ -33,20 +34,10 @@ judge. Changing the rules (`.github/`, `tools/pipeline/`, `AGENTS.md`, `Makefile
 
 ## How agents are started
 
-Agents run when a human asks (this keeps AI usage under control): give an agent a task and it opens a Task
-issue, claims it, and takes it through the gates; or tell it "do the next thing" and it runs `make next`.
-Everything after the PR is opened (gates, auto-merge, release, health, ledger) runs in GitHub Actions,
-which is free for public repos. Optional extras: Codex automatic reviews (Codex settings) and the unattended
-codex-worker (needs `OPENAI_API_KEY` + `AGENT_GH_TOKEN`).
-
-## The loop
-
-```
-make next AGENT=claude      # or codex
-```
-
-returns exactly one action (fix-incident › fix-pr › review › continue › claim › propose › idle) and the
-lessons to read first. Do that one action, then run it again or stop. Unattended runs are optional: `.github/workflows/codex-worker.yml` runs Codex on a schedule once its secrets are set.
+Agents run only when a human asks (this keeps AI usage under control). Give an agent a task and it opens a
+Task issue, claims it, reads the lessons tagged for it, and takes it through the gates. There is no scheduler
+and no unattended worker. Everything after the PR is opened (gates, auto-merge, release, health, ledger)
+runs in GitHub Actions, which is free for public repos.
 
 ## The ledger
 

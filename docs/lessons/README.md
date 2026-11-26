@@ -1,7 +1,7 @@
 # Lessons
 
-One lesson per file, so agents never edit the same file at once. Every agent reads the lessons that
-`make next` lists for its action before starting. The learning gate requires a new lesson in any PR that hit
+One lesson per file, so agents never edit the same file at once. Before starting a task, every agent reads
+the lessons tagged `general` and those tagged with its map or area (AGENTS.md, step 2). The learning gate requires a new lesson in any PR that hit
 a red check or fixes an incident, so the knowledge base grows from real mistakes.
 
 File name: `YYYY-MM-DD-short-slug.md`. Format (checked by the learning gate):
@@ -19,6 +19,5 @@ source: PR #n, incident #n, or history
 ## Rule
 ```
 
-Tags decide who sees a lesson: `make next` matches them against the task's map and paths and the failing
-gates. Tag `general` for anything every agent should know. Update an old lesson instead of adding a
+Tags decide who sees a lesson: agents pick lessons by matching tags against their task's map and area. Tag `general` for anything every agent should know. Update an old lesson instead of adding a
 duplicate when you learn more about the same thing.

@@ -5,7 +5,8 @@ from pathlib import PurePosixPath
 from tools.pipeline import AGENTS
 
 PLACEHOLDER = {"", "_no response_", "none", "n/a", "-", "tbd", "todo"}
-ALLOWED_ROOTS = ("maps/", "tools/", "docs/", ".github/", "Makefile", "AGENTS.md", "README.md", "requirements.txt")
+ALLOWED_ROOTS = ("maps/", "tools/", "docs/", ".github/", "Makefile", "AGENTS.md", "CLAUDE.md", "README.md", "requirements.txt",
+                 ".gitignore")
 PROTECTED = (".github/", "tools/pipeline/", "AGENTS.md", "Makefile", "CLAUDE.md")   # rules of the system itself
 PRIORITY = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
 
@@ -92,10 +93,6 @@ def parse_agent_review(body):
     if not {"reviewer", "verdict", "sha"} <= kv.keys():
         return None
     return dict(reviewer=kv["reviewer"].lower(), verdict=kv["verdict"].lower(), sha=kv["sha"].lower())
-
-
-def is_codex_login(login):
-    return "codex" in (login or "").lower()
 
 
 # ------------------------------------------------------------------ lessons
