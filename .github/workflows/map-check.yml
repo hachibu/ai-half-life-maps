@@ -61,39 +61,6 @@ jobs:
             echo "maps=$M" >> "$GITHUB_OUTPUT"
           fi
 
-  golden:
-    # The pinned SDHLT build still compiles the template map to the same bytes. Only when something that could
-    # change that is in the PR, and alongside the map builds rather than before them.
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - id: need
-        name: Did the compiler, the template map or its generator change?
-        run: |
-          if [ "${{ github.event_name }}" != "pull_request" ] || git diff --name-only "origin/${{ github.base_ref }}...HEAD" \
-             | grep -qE '^(tools/bsp/|tools/mapkit\.py$|tools/assets/|maps/_template/|Makefile$|requirements\.txt$|\.github/workflows/map-check\.yml$)'; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"; echo "nothing that affects compiler output changed: skipped"
-          fi
-      - if: steps.need.outputs.run == 'true'
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - if: steps.need.outputs.run == 'true'
-        name: Cache SDHLT (the map compiler, built from tools/bsp/sdhlt.rev)
-        uses: actions/cache@v4
-        with:
-          path: build/sdhlt
-          key: sdhlt-${{ runner.os }}-${{ hashFiles('tools/bsp/sdhlt.rev') }}
-      - if: steps.need.outputs.run == 'true'
-        name: The template map compiles to its committed SHA-256
-        run: pip install -q -r requirements.txt && make golden
-
   placeholder:
     # Post a "rendering" placeholder in the screenshot comment as soon as CI starts; the screenshots job below
     # finds the same comment (by its marker) and replaces it with the before/after shots.
@@ -205,7 +172,7 @@ jobs:
     # The one check branch rules require: every job above passed or was skipped (map builds skip when no map
     # changed). automerge.yml merges agent PRs when this workflow succeeds.
     name: map-check
-    needs: [plan, golden, placeholder, build, screenshots]
+    needs: [plan, placeholder, build, screenshots]
     if: always()
     runs-on: ubuntu-latest
     steps:

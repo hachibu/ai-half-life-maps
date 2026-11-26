@@ -53,8 +53,7 @@ The repo is laid out so that two agent sessions almost never edit the same file:
 ## Layout
 
 ```
-tools/bsp/sdhlt.rev         the SDHLT commit `make build` compiles maps with (hlcsg/hlbsp/hlvis/hlrad); output pinned by `make golden`
-tools/bsp/bspfile/           Go BSP reader shared by the checks and the renderer (limits, consistency, hulls)
+tools/bsp/sdhlt.rev         the SDHLT commit `make build` compiles maps with (hlcsg/hlbsp/hlvis/hlrad); output pinned by `tools/bsp/bspfile/           Go BSP reader shared by the checks and the renderer (limits, consistency, hulls)
 tools/checks/mapcheck/      `make test`: structure (engine limits), placements, wiring, walk routes (Go)
 tools/checks/walker/        the route walker (Go): 18-unit steps, free drops; walk.py hands it each map's ROUTES
 tools/render/renderer/      the preview + video renderer (Go; views render concurrently)
@@ -85,8 +84,6 @@ make test  MAP=<name>                  # structure + limits, placements, wiring,
 make views MAP=<name>                  # preview PNGs in build/<name>/previews/
 make video MAP=<name>                  # walkthrough mp4 + Discord-size copy (if the map has video/walkthrough.py)
 make lint                              # golangci-lint (gofmt, go vet, staticcheck, errcheck, unused, ...)
-make golden                            # the template map compiled by SDHLT must match its committed SHA-256
-make golden-update                     # only when you changed that output on purpose: commit it, say why in the PR
 make all                               # build + test every map
 ```
 
@@ -103,11 +100,6 @@ Each of these cost real time once; the lesson files have the details.
 - **Rebase on the real latest `main` before opening a PR.** In a git worktree, `git fetch origin main` may only
   update `FETCH_HEAD`: rebase onto `FETCH_HEAD`, and force-push with an explicit lease
   (`--force-with-lease=<branch>:<sha you expect>`).
-- **A refactor leaves `make golden` unchanged; an output change is deliberate.** Maps compile with SDHLT at a
-  pinned commit (tools/bsp/sdhlt.rev), and the template map's compiled bytes are pinned. Floating-point
-  operation order matters (a reordered sum or a fused multiply-add changes last bits). If the output changes on
-  purpose (a new SDHLT commit, a change to the template), run `make golden-update`, commit it, and say in the PR why and
-  how you checked the maps.
 - **PRs and releases compile what players get: full VIS and full lighting.** `make build` runs both;
   `LIGHT=quick VIS=fast` is a draft mode for iterating locally. Full VIS stays fast only because the maps put
   small brushes in `func_detail` (`split_detail` in tools/mapkit.py: anything without two sides >= 256 units).

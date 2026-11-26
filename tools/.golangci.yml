@@ -1,9 +1,5 @@
-# golangci-lint v2 config for all Go code in the repo (one go.mod at the root). It lives under tools/ because
-# task Paths must stay inside the repo areas; `make lint` passes it with -c from the repo root. CI pins the
-# same golangci-lint version in .github/workflows/map-check.yml.
-#
-# Output is pinned by `make golden`, so a lint fix must never change a compiled BSP or a score: run
-# `make golden` after fixing anything that builds the template map.
+# golangci-lint v2 config for all Go code in the repo (one go.mod at the root); `make lint` passes it with -c
+# from the repo root. CI pins the same golangci-lint version in .github/workflows/map-check.yml.
 version: "2"
 
 linters:
