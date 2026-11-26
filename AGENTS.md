@@ -74,7 +74,8 @@ The repo is laid out so that two agents almost never edit the same file:
 ## Layout
 
 ```
-tools/bsp/compile.py        .map + .wad -> .bsp (BSP tree, collision hulls, lighting, sky, pivots, animated textures)
+go/bspc/                    the BSP compiler `make build` uses (Go port; same output as compile.py, ~10-100x faster)
+tools/bsp/compile.py        reference Python compiler (COMPILER=py) (BSP tree, collision hulls, lighting, sky, pivots, animated textures)
 tools/bsp/reader.py         reads a compiled .bsp; shared by every check and the renderer
 tools/checks/               structure (engine limits), placements, wiring, walk (route walker)
 tools/render/               preview renderer (+ views.py for a map's preview shots)

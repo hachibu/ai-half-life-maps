@@ -1,5 +1,7 @@
 # Half-Life 1 map pipeline.  Every map lives in maps/<name>/ and builds into build/<name>/.
-#   make build MAP=prairieloop     generate + compile + package  -> build/prairieloop/prairieloop.zip
+#   make build MAP=prairieloop     generate + compile (Go: go/bspc) + package -> build/prairieloop/prairieloop.zip
+#                                  COMPILER=py uses the original Python compiler (tools/bsp/compile.py)
+#   make compiler-parity           Go and Python compilers must produce the same BSP for the template map
 #   make test  MAP=prairieloop     structure/limits, placements, wiring, walk routes
 #   make views MAP=prairieloop     preview images  -> build/prairieloop/previews/
 #   make video MAP=prairieloop     walkthrough mp4 + Discord-size copy (maps with video/walkthrough.py)
@@ -16,7 +18,7 @@ MAPS    := $(filter-out _template,$(notdir $(wildcard maps/*)))
 BD       = build/$(MAP)
 TIMEOUT ?= 1800
 
-.PHONY: build test views video all list check-map readme next ledger pipeline-test quality holdout-encrypt
+.PHONY: bspc compiler-parity build test views video all list check-map readme next ledger pipeline-test quality holdout-encrypt
 
 check-map:
 	@test -n "$(MAP)" || (echo "usage: make <target> MAP=<one of: $(MAPS)>"; exit 2)
@@ -25,9 +27,21 @@ check-map:
 list:
 	@echo $(MAPS)
 
-build: check-map
+BSPC     = build/bin/bspc
+COMPILER ?= go
+
+$(BSPC): $(wildcard go/bspc/*.go) go/bspc/go.mod
+	cd go/bspc && go build -o ../../$(BSPC) .
+
+bspc: $(BSPC)
+
+build: check-map $(if $(filter go,$(COMPILER)),$(BSPC))
 	timeout $(TIMEOUT) $(PY) maps/$(MAP)/build.py
+ifeq ($(COMPILER),go)
+	timeout $(TIMEOUT) $(BSPC) $(BD)/$(MAP).map $(BD)/$(MAP).wad $(BD)/$(MAP).bsp
+else
 	timeout $(TIMEOUT) $(PY) -u -m tools.bsp.compile $(BD)/$(MAP).map $(BD)/$(MAP).wad $(BD)/$(MAP).bsp
+endif
 	$(PY) -m tools.package $(MAP)
 
 test: check-map
@@ -75,3 +89,9 @@ holdout-encrypt:
 
 readme:
 	$(PY) -m tools.readme
+
+compiler-parity: $(BSPC)
+	$(PY) maps/_template/build.py
+	$(BSPC) build/_template/_template.map build/_template/_template.wad build/_template/parity_go.bsp > /dev/null
+	$(PY) -m tools.bsp.compile build/_template/_template.map build/_template/_template.wad build/_template/parity_py.bsp > /dev/null
+	cmp build/_template/parity_go.bsp build/_template/parity_py.bsp && echo "compiler parity: identical"
