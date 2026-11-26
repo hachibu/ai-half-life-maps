@@ -1,6 +1,5 @@
-// bspc: GoldSrc (BSP v30) compiler for the generated maps in this repo. A Go port of tools/bsp/compile.py
-// with the same algorithms and output, parallelised with goroutines (CSG per brush, BSP subtrees, the four
-// hulls, lighting per face).
+// bspc: GoldSrc (BSP v30) compiler for the generated maps in this repo, parallelised with goroutines (CSG per
+// brush, BSP subtrees, the four hulls, lighting per face). Its output is pinned by `make golden`; see README.md.
 //
 //	bspc in.map in.wad out.bsp
 package main

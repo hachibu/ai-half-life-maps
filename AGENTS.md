@@ -74,8 +74,7 @@ The repo is laid out so that two agents almost never edit the same file:
 ## Layout
 
 ```
-tools/bsp/bspc/             the BSP compiler `make build` uses (Go; same output as compile.py, 10-100x faster)
-tools/bsp/compile.py        its Python twin, kept as the reference (`make build COMPILER=py`)
+tools/bsp/bspc/             the BSP compiler (Go); its output is pinned by `make golden`
 tools/bsp/reader.py         reads a compiled .bsp; shared by every check and the renderer
 tools/checks/               structure (engine limits), placements, wiring, walk (route walker)
 tools/render/               preview renderer (+ views.py for a map's preview shots)
@@ -84,9 +83,8 @@ tools/assets/skyfire.py     skybox faces (TGA) + fire sprite
 tools/package.py            builds the valve/ layout, .res file and zip
 tools/ci/previews.py        CI only: stores screenshots, writes the before/after PR comment, visual gate
 tools/ci/quality.py         CI only: satisfaction + holdout measurement and the no-regression ratchet
-tools/checks/satisfy/       the satisfaction scorer CI uses (Go; same scores as satisfaction.py, 10-20x faster)
-tools/checks/satisfaction.py  its Python twin: 0-100 playability score from sampled movement (holdout reuses it)
-tools/checks/holdout.py     human-written encrypted scenarios, run only in CI
+tools/checks/satisfy/       satisfaction scorer (Go): 0-100 playability score from sampled movement; also runs holdout
+tools/checks/holdout.py     human-written encrypted scenarios, run only in CI (evaluated by satisfy)
 tools/pipeline/             gates, ledger, `next` scheduler, publisher (see docs/pipeline.md)
 docs/lessons/               the knowledge base: one lesson per file, read what `make next` lists
 tools/mapkit.py             zone-based map assembly (conflict-free multi-agent maps)
@@ -96,7 +94,7 @@ maps/<name>/assets.py       that map's own textures/sprites/sounds (when it has 
 maps/<name>/tests/routes.py walk routes that must stay passable
 maps/<name>/tests/views.py  preview camera shots
 maps/<name>/map.toml        name, owner, sky, description
-go.mod                      one Go module for the repo; every Go program sits next to its Python twin
+go.mod                      one Go module for the repo (the compiler and the scorer); lint config: tools/.golangci.yml
 build/                      everything generated (git-ignored); build/bin/ holds the Go binaries
 ```
 
@@ -109,13 +107,13 @@ make test  MAP=<name>                  # structure + limits, placements, wiring,
 make views MAP=<name>                  # preview PNGs in build/<name>/previews/
 make video MAP=<name>                  # walkthrough mp4 + Discord-size copy (if the map has video/walkthrough.py)
 make quality MAP=<name>                # satisfaction score (+ holdout pass rate in CI)
-make lint                              # gofmt, go vet, staticcheck
-make compiler-parity                   # Go and Python compiler + scorer must agree exactly
+make lint                              # golangci-lint (gofmt, go vet, staticcheck, errcheck, unused, ...)
+make golden                            # compiler + scorer output must match the committed golden values
+make golden-update                     # only when you changed that output on purpose: commit it, say why in the PR
 make all                               # build + test every map
 ```
 
-Compile times with the Go compiler: seconds to half a minute per map. If something takes minutes, it's a bug
-or you're on the Python path (`COMPILER=py`).
+Compile times: seconds to half a minute per map. If something takes minutes, it's a bug.
 
 ## Working rules we learned the hard way
 
@@ -129,10 +127,11 @@ Each of these cost real time once; the lesson files have the details.
 - **Rebase on the real latest `main` before opening a PR.** In a git worktree, `git fetch origin main` may only
   update `FETCH_HEAD`: rebase onto `FETCH_HEAD`, and force-push with an explicit lease
   (`--force-with-lease=<branch>:<sha you expect>`).
-- **Ports must match exactly, and prove it.** numpy's small dot products are fused multiply-adds in specific
-  orders, Python's `math.hypot` is correctly rounded, and `default_rng` is PCG64 via SeedSequence. Measure each
-  primitive against the original on thousands of inputs, compare outputs byte for byte (or field by field),
-  and keep a parity check in CI. See `tools/bsp/bspc/README.md` and docs/lessons.
+- **A refactor leaves `make golden` unchanged; an output change is deliberate.** The Go compiler and scorer have
+  no second implementation to compare against, so their output is pinned. Floating-point operation order
+  matters (a reordered sum or a fused multiply-add changes last bits and can flip a split). If the output
+  changes on purpose, run `make golden-update`, commit it, and say in the PR why and how you checked the maps.
+  When porting numeric code, measure each primitive against the original first (docs/lessons).
 - **Prefer comparing to existing artifacts over re-running slow reference code.** A BSP built earlier from the
   same inputs is as good a reference as a fresh 9-minute Python compile.
 - **Merges trigger releases in merge order.** Two PRs merging close together release in the order they

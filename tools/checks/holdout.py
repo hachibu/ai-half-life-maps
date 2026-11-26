@@ -11,6 +11,9 @@ Plain-JSON format before encryption (a list):
   kind "reach": from every start (or the point), some target (an entity class, or a point) is reachable
                 within `within` units of running (default: any distance).
 
+The Go scorer (build/bin/satisfy, `make bspc`) evaluates them on its navigation graph. The decrypted scenarios
+go to it over stdin and are never written to disk.
+
 Humans:
   HOLDOUT_KEY=... make holdout-encrypt   (holdout/scenarios.json -> holdout/scenarios.enc; never commit the .json)
 CI:
@@ -22,9 +25,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from tools.checks import satisfaction as S
-
 ENC = Path("holdout/scenarios.enc")
+SATISFY = Path("build/bin/satisfy")
 
 
 def load_scenarios():
@@ -45,16 +47,15 @@ def run(map_name, bsp):
     sc = [s for s in sc if s.get("map") == map_name]
     if not sc:
         return dict(rate=None, n=0, note="no holdout scenarios for this map")
-    g = S.graph(bsp)
-    ok = 0
-    for s in sc:
-        starts = g.spawn_nodes if s.get("from") == "spawns" else [g.point(*s["from"])]
-        tgt = g.class_nodes(s["to"]) if isinstance(s["to"], str) else [g.point(*s["to"])]
-        tgt = {t for t in tgt if t is not None}
-        lim = s.get("within", float("inf"))
-        good = all(st is not None and any(t in S.dijkstra(g.edges, [st], lim) for t in tgt) for st in starts) and tgt
-        ok += bool(good)
-    return dict(rate=round(100.0 * ok / len(sc), 1), n=len(sc))
+    if not SATISFY.exists():
+        raise SystemExit("holdout: %s is missing; run `make bspc`" % SATISFY)
+    out = Path(bsp).with_suffix(".holdout.json")
+    r = subprocess.run([str(SATISFY), bsp, "--holdout", "-", "--json", str(out)], input=json.dumps(sc).encode(),
+                       capture_output=True)
+    if r.returncode != 0:
+        raise SystemExit("holdout: satisfy failed: %s" % r.stderr.decode().strip())   # names an index, never a scenario
+    res = json.loads(out.read_text())
+    return dict(rate=res["rate"], n=res["n"])
 
 
 if __name__ == "__main__":

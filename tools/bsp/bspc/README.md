@@ -1,7 +1,10 @@
 # bspc: the Go BSP compiler
 
-`make build` compiles maps with this: a Go port of `tools/bsp/compile.py` (kept as the reference,
-`make build COMPILER=py`). Standard library only; `make bspc` (builds `build/bin/bspc` from the repo's `go.mod`).
+`make build` compiles maps with this. It is the only BSP compiler in the repo: it started as a byte-exact port of
+a Python compiler (`tools/bsp/compile.py`, deleted in #24; see git history). Standard library only; `make bspc`
+builds `build/bin/bspc` from the repo's `go.mod`.
+
+Speed against the old Python compiler, measured when it was ported:
 
 | map | Python | Go | output |
 |---|---|---|---|
@@ -11,14 +14,18 @@
 
 (2-core sandbox; GitHub's runners have more cores, and Go uses all of them.)
 
-## Why it matches Python exactly
+## Golden output
 
-The port keeps every algorithm and every loop order. Parallel work only happens where the results are
-independent and are put back in the original order: CSG per brush, BSP subtrees, the four hulls, and lighting
-per face (each luxel still adds its lights in the same order).
+There is no second compiler to compare against any more. Instead `make golden` (run in CI) compiles the template
+map and prairieloop and requires their SHA-256 to match `golden.sha256`. Refactoring, linting or speeding up the
+compiler must leave that unchanged. If you change the output on purpose (a new feature, a fix, a different
+floating-point order), run `make golden-update`, commit `golden.sha256`, and say in the pull request why the
+output changed and how you checked the new maps (`make build test views` for every map).
 
-Floating point is matched operation by operation. numpy does not compute a 3-element dot product as
-`a0*b0 + a1*b1 + a2*b2`; we measured (4000/4000 random cases each) what each form really does:
+## Floating point
+
+The code still uses the exact operation order of the Python original, because that is what produced today's
+golden output. numpy computes small dot products with fused multiply-adds, so the port has several dot forms:
 
 | numpy expression | what it computes | Go |
 |---|---|---|
@@ -27,8 +34,6 @@ Floating point is matched operation by operation. numpy does not compute a 3-ele
 | `einsum` over 3 | `(a0*b0 + a2*b2) + a1*b1` | `Vec.DotE` |
 | `norm(x, axis=1)` | `sqrt((x0² + x1²) + x2²)` | inline |
 
-Using plain multiply-adds instead flipped a few near-threshold splits and changed BattleAxe's geometry.
-Products are wrapped in `float64()` so the Go compiler never fuses them on arm64.
-
-`make compiler-parity` (run in CI) compiles the template map with both compilers and requires identical bytes.
-If you change the algorithm, change both compilers or retire the Python one in the same pull request.
+Changing one of these changes last bits, which can flip a near-threshold split and change a map's geometry:
+that's an output change (golden update + map checks), not a refactor. Products are wrapped in `float64()` so
+the Go compiler never fuses them on arm64; keep that unless you mean to change the output.

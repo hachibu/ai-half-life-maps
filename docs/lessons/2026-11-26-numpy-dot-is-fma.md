@@ -19,5 +19,6 @@ other orders. The Go code used plain `a0*b0 + a1*b1 + a2*b2`. The last-bit diffe
 ## Rule
 
 When porting numeric code, measure each primitive against the original on thousands of random inputs and
-copy the exact operation order (see tools/bsp/bspc/README.md). Keep a byte-for-byte parity check in CI
-(`make compiler-parity`), and compare every map lump by lump before switching over.
+copy the exact operation order (see tools/bsp/bspc/README.md), and compare every map lump by lump before
+switching over. Once the original is retired (the Python compiler was deleted in #24), pin the output with a
+golden check (`make golden`) so a refactor that changes last bits is still caught.
