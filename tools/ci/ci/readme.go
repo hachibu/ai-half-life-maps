@@ -175,7 +175,7 @@ func mainBlock(repo, version string, ms []mapMeta) string {
 
 func mapBlock(repo, version string, m mapMeta) string {
 	lines := []string{"## Screenshots", "",
-		"Rendered by CI from `main` after every release (preview renderer: see-through fences show as solid blue).", "",
+		"Rendered by CI from `main` after every release.", "",
 		"| | |", "|---|---|"}
 	for i := 0; i < len(m.views); i += 2 {
 		var cells []string
