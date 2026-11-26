@@ -219,6 +219,69 @@ or crests/flags/religious symbols used as faction emblems. Fonts: only the ones 
 - Each map's README documents its own layout (where zones are, who owns them).
 - New maps start from `maps/_template/` (zone-based). Prefer adding a zone to growing a giant file.
 
+## References: GoldSrc mapping best practice
+
+Community docs we trust, grouped by the question they answer. Read the relevant one before changing how
+maps are built, lit or optimised. Where they disagree with this file or a lesson, this repo wins (our checks
+measure our maps); if you think a source shows a rule here is wrong, change the rule in its own PR and cite it.
+Most GoldSrc guides assume a hand-built map in Hammer/J.A.C.K.; the ideas carry over to generated maps, the
+editor steps don't.
+
+**Compilers (we use SDHLT, pinned in `tools/sdhlt.rev`)**
+
+- SDHLT: https://github.com/seedee/SDHLT (based on VHLT v34; adds tool textures and higher world-size limits)
+  and https://developer.valvesoftware.com/wiki/SDHLT
+- ZHLT/VHLT docs, which SDHLT inherits (entities, tool textures, command-line options, common compile errors):
+  https://thederevtso.github.io/zhlt.info.mirror-unofficial/ and its
+  [common problems page](https://thederevtso.github.io/zhlt.info.mirror-unofficial/common-mapping-problems.html)
+- VHLT command reference (every hlcsg/hlbsp/hlvis/hlrad flag): https://wiki.svencoop.com/Mapping/VHLT_command_reference
+- What each stage does: https://twhl.info/wiki/page/Compile, https://developer.valvesoftware.com/wiki/HLCSG,
+  https://developer.valvesoftware.com/wiki/HLBSP
+
+**File formats**
+
+- `.map` (GoldSrc compilers only read Quake 1 Valve220; plane points, texture axes):
+  https://developer.valvesoftware.com/wiki/MAP_(file_format)
+- `.bsp` v30 lumps (what `tools/bspfile` reads): https://developer.valvesoftware.com/wiki/BSP_(GoldSrc)
+
+**Engine limits and optimisation**
+
+- Compiler charts and per-lump limits (`-chart`, why limits are index sizes, edicts):
+  https://twhl.info/wiki/page/Tutorial:_Compiler_charts_and_limits
+- Total Map Optimisation, parts 1-3 (wpoly/epoly, VIS and hints, clipnodes, limits, compile parameters):
+  https://twhl.info/wiki/page/Total_Map_Optimisation_Part_1_(wpoly,_epoly),
+  https://twhl.info/wiki/page/Total_Map_Optimisation_Part_2_(VIS,_Hints), and part 3 in
+  https://twhl.info/wiki/page/category:Goldsource_Tutorials+Mapping
+- r_speeds and face subdivision: https://twhl.info/wiki/page/Tutorial:_R_Speeds and
+  https://twhl.info/wiki/page/VERC:_Advanced_r_speeds_Control
+- Visibility, func_detail and hint brushes: https://developer.valvesoftware.com/wiki/BSP_Map_Optimization,
+  https://twhl.info/wiki/page/VERC:_Hint_Brush_Tutorial (design real vis blockers first; hints refine them)
+- Leaks (a map must be sealed; VIS and RAD refuse to run on a leak):
+  https://twhl.info/wiki/page/Tutorial:_How_to_fix_those_leaks, https://developer.valvesoftware.com/wiki/Leaks
+
+**Scale and player movement** (what `tools/walker` and the placement checks model)
+
+- https://developer.valvesoftware.com/wiki/GoldSrc_Dimensions and https://twhl.info/wiki/page/Tutorial:_Dimensions:
+  step 18, jump 45, crouch-jump 63, player 32x32x72, pass-through gap 33, crouch clearance 37, walk clearance 73.
+- https://twhl.info/wiki/page/VERC:_Half-Life_Unit_To_Real-Life_Unit_Conversion: there's no exact real-world
+  scale (1 unit = 1 texel); hallways 64-256 wide and 96-192 tall; 8-unit stair steps look better than 16.
+
+**Lighting**
+
+- https://twhl.info/wiki/page/Tutorial:_The_Complete_Guide_to_Lighting (light entities, texture lights, styles,
+  hlrad settings; only 31 switchable light styles)
+- https://twhl.info/wiki/page/Tutorial:_Lighting_Theory_-_An_Introduction_to_Lighting_Design (using light to guide
+  the player)
+- https://twhl.info/wiki/page/Models_and_lighting (models take their light from the surface under their origin)
+
+**Deathmatch layout and general**
+
+- https://twhl.info/wiki/page/Tutorial:_Half-Life_Deathmatch_mapping (a layout new players can learn quickly;
+  strong weapons in risky spots, not by spawns; keep render cost low)
+- https://developer.valvesoftware.com/wiki/Multi-Player_Mapping_Tips (written for HL2DM; layout advice applies)
+- Index of every GoldSrc mapping tutorial: https://twhl.info/wiki/page/category:Goldsource_Tutorials+Mapping
+- Tool list (bspguy for inspecting compiled maps, decompilers, WAD editors): https://twhl.info/wiki/page/Tools_and_Resources
+
 ## When you finish a pull request
 
 Fill in every section of the pull request template (`.github/pull_request_template.md`). Write for a person
