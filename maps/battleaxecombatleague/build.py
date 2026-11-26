@@ -482,10 +482,17 @@ for cls, x, y, z in ITEMS:
 point("ambient_generic", 0, 0, 400, message="ambience/crowd1.wav", health=10, spawnflags=1)
 
 STRUCT, DETAIL = split_detail(W)    # small brushes -> func_detail, so full VIS stays fast
+# Bigger radiosity patches on the big, plain surfaces: bounced light there is smooth anyway, and patch count drives
+# most of hlrad's time (visibility between patches, form factors, bounces). Direct light keeps full detail.
+# (Not the walls the locker rooms and tunnels are built from: STANDS, STADWALL, CONCRETE. Those rooms are lit
+# mostly by bounces, and bigger patches there visibly darkened them.)
+CHOPSCALE = {"SEATS": 2, "ROOF": 2, "CROWDTOP": 2, "CROWDF1": 2, "CROWDF2": 2, "CROWDF3": 2, "METAL": 2, "TRUSS": 2,
+             "LIGHTBEAM": 4}
+CHOP_ENT = '{\n"classname" "info_chopscale"\n' + "".join('"%s" "%g"\n' % kv for kv in CHOPSCALE.items()) + "}\n"
 world = ('{\n"classname" "worldspawn"\n"mapversion" "220"\n"wad" "battleaxecombatleague.wad"\n'
          '"message" "BattleAxe Combat League - Fight Night"\n' + "".join(STRUCT) + "}\n")
 with open(os.path.join(OUT, "battleaxecombatleague.map"), "w", newline="\r\n") as f:
-    f.write(world + detail_entity(DETAIL) + "".join(BENTS) + "".join(ENTS)
+    f.write(world + detail_entity(DETAIL) + "".join(BENTS) + "".join(ENTS) + CHOP_ENT
             + texlights(os.path.join(OUT, "battleaxecombatleague.wad"), fn_textures.EMISSIVE))
 VALVE = os.path.join(OUT, "valve")
 os.makedirs(os.path.join(VALVE, "gfx", "env"), exist_ok=True); os.makedirs(os.path.join(VALVE, "sprites"), exist_ok=True)
