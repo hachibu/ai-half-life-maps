@@ -18,19 +18,33 @@ type Limit struct {
 	Max        int
 }
 
+// Counter keys (also the labels printed by the structure check where they read the same).
+const (
+	KeyLux     = "lux"
+	KeyClip    = "clip"
+	KeyNodes   = "nodes"
+	KeyLeafs   = "leafs"
+	KeyFaces   = "faces"
+	KeyMarks   = "marks"
+	KeyPlanes  = "planes"
+	KeyTexInfo = "texinfo"
+	KeyModels  = "models"
+	KeyVerts   = "verts"
+)
+
 // Limits the structure check enforces. Light samples: the GoldSrc lightmap atlas holds ~1,048,576
 // samples and packing wastes some, so we keep a safety margin.
 var Limits = []Limit{
-	{"light samples", "lux", 800000},
-	{"clipnodes", "clip", 32767},
-	{"nodes", "nodes", 32767},
-	{"leafs", "leafs", 8192},
-	{"faces", "faces", 65535},
-	{"marksurfaces", "marks", 65535},
-	{"planes", "planes", 32767},
-	{"texinfo", "texinfo", 8192},
-	{"models", "models", 400},
-	{"vertexes", "verts", 65535},
+	{"light samples", KeyLux, 800000},
+	{"clipnodes", KeyClip, 32767},
+	{KeyNodes, KeyNodes, 32767},
+	{KeyLeafs, KeyLeafs, 8192},
+	{KeyFaces, KeyFaces, 65535},
+	{"marksurfaces", KeyMarks, 65535},
+	{KeyPlanes, KeyPlanes, 32767},
+	{KeyTexInfo, KeyTexInfo, 8192},
+	{KeyModels, KeyModels, 400},
+	{"vertexes", KeyVerts, 65535},
 }
 
 // Plane is a BSP plane: normal, distance and axial type (0-2 axial, 3-5 nearest axis).
@@ -458,9 +472,9 @@ func (m *BSP) check(tb []byte) {
 		e := ex
 		m.FExt = append(m.FExt, &e)
 	}
-	m.Counts = map[string]int{"lux": m.Lux, "clip": len(m.Clip), "nodes": len(m.Nodes), "leafs": len(m.Leafs),
-		"faces": len(m.Faces), "marks": len(m.Marks), "planes": len(m.Planes), "texinfo": len(m.TexInfo),
-		"models": len(m.Models), "verts": len(m.Verts)}
+	m.Counts = map[string]int{KeyLux: m.Lux, KeyClip: len(m.Clip), KeyNodes: len(m.Nodes), KeyLeafs: len(m.Leafs),
+		KeyFaces: len(m.Faces), KeyMarks: len(m.Marks), KeyPlanes: len(m.Planes), KeyTexInfo: len(m.TexInfo),
+		KeyModels: len(m.Models), KeyVerts: len(m.Verts)}
 	for _, l := range Limits {
 		m.chk(m.Counts[l.Key] < l.Max, "over engine limit: "+l.Label)
 	}
