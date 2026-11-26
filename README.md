@@ -14,6 +14,7 @@ our Go tools (engine limits, spawns, wiring, walkable routes, screenshots).
 | | Map |
 |---|---|
 | <a href="maps/battleaxecombatleague/"><img src="https://raw.githubusercontent.com/hachibu/ai-half-life-maps/previews/main/battleaxecombatleague/stadium.jpg?v=797afad" alt="BattleAxe Combat League - Fight Night" width="280"></a> | **[BattleAxe Combat League - Fight Night](maps/battleaxecombatleague/)** (`battleaxecombatleague`)<br>Pay-per-view fight night in a packed stadium; fighters spawn in locker rooms and walk out to the octagon. |
+| <a href="maps/casaroble/"><img src="https://raw.githubusercontent.com/hachibu/ai-half-life-maps/previews/main/casaroble/front_from_street.jpg?v=797afad" alt="Casa Roble: Spanish Bungalow Under the Oaks" width="280"></a> | **[Casa Roble: Spanish Bungalow Under the Oaks](maps/casaroble/)** (`casaroble`)<br>A 1920s one-storey Spanish bungalow on a hillside street: stucco and clay tile, a fireplace and skylit kitchen, sliders onto an oak-shaded deck, and a detached garage-office at the end of a long driveway. |
 | <a href="maps/prairieloop/"><img src="https://raw.githubusercontent.com/hachibu/ai-half-life-maps/previews/main/prairieloop/street.jpg?v=797afad" alt="Prairie Loop Winter: JustinCon After Hours" width="280"></a> | **[Prairie Loop Winter: JustinCon After Hours](maps/prairieloop/)** (`prairieloop`)<br>Snowstorm on a prairie loop street; nine basements and tunnels lead to a neon LAN hall where BattleAxe faces Crescent. Includes the Restore the Power event. |
 <!-- maps:end -->
 
