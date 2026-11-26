@@ -148,9 +148,9 @@ HOLES.append((*HALL, HF, HC, "ARCADECARPET", "HALLCEIL"))
 SRV = (-700, -560, -420, -384); SRV_Z = (HF, -336)
 HOLES.append((*SRV, *SRV_Z, "TUNNELFLOOR", "TUNNELWALL"))
 PX0, PX1 = 464, 560                                                          # blue house reveal passage
-for k in range(1, 10):
-    y0, y1 = 832 - 24 * k, 856 - 24 * k
-    HOLES.append((PX0, y0, PX1, y1, BF - 16 * k, -192 if k == 9 else -48, "STEP", "TUNNELWALL"))
+for j in range(1, 19):                                                       # 8-unit risers, 12-unit treads
+    y0, y1 = 832 - 12 * j, 844 - 12 * j
+    HOLES.append((PX0, y0, PX1, y1, BF - 8 * j, -192 if j >= 17 else -48, "STEP", "TUNNELWALL"))
 HOLES.append((PX0, 384, PX1, 616, -320, -192, "TUNNELFLOOR", "TUNNELWALL"))
 
 def surface_tex(x, y):
@@ -239,8 +239,8 @@ def house(h):
     B(-240, -208, -16, 240, 128, 0, "WOODFLOOR", bottom="CEILTILE")
     B(-240, 128, -16, -40, 208, 0, "WOODFLOOR", bottom="CEILTILE")
     B(200, 128, -16, 240, 208, 0, "WOODFLOOR", bottom="CEILTILE")
-    for k in range(1, 11):
-        B(200 - 24 * k, 128, BF, 224 - 24 * k, 208, -16 * k, "BASEWALL", top="STEP")
+    for j in range(1, 22):                              # 8-unit risers down to the basement floor (BF = -176)
+        B(200 - 12 * j, 128, BF, 212 - 12 * j, 208, -8 * j, "BASEWALL", top="STEP")
     B(-40, 124, 0, 200, 128, 36, "TRIM", dest=DECOR)
     # ground floor walls with door + windows
     GH = 128
@@ -327,10 +327,10 @@ def bridge(x0, y0, x1, y1):
 for (a0, a1), (b0, b1) in zip(HXS, HXS[1:]):
     bridge(a1, 1024, b0, 1088); bridge(a1, -1088, b0, -1024)
 bridge(1312, 704, 1376, 832); bridge(1408, 256, 1472, 448); bridge(1408, -448, 1472, -256); bridge(1312, -832, 1376, -704)
-for k in range(1, 10):                                     # exterior stairs: N0 west side
-    W.append(box(-1472, 1000 + 24 * (k - 1), 0, -1408, 1000 + 24 * k, 16 * k, "PLANK", top="ROOFSNOW"))
-for k in range(1, 10):                                     # exterior stairs: east house south side
-    W.append(box(1700 - 24 * k, -320, 0, 1724 - 24 * k, -256, 16 * k, "PLANK", top="ROOFSNOW"))
+for j in range(1, 19):                                     # exterior stairs (8-unit risers): N0 west side
+    W.append(box(-1472, 1000 + 12 * (j - 1), 0, -1408, 1000 + 12 * j, 8 * j, "PLANK", top="ROOFSNOW"))
+for j in range(1, 19):                                     # exterior stairs: east house south side
+    W.append(box(1700 - 12 * j, -320, 0, 1712 - 12 * j, -256, 8 * j, "PLANK", top="ROOFSNOW"))
 W.append(hull_brush([(-1760, -1240, 0), (-1760, -1112, 0), (-1408, -1240, 0), (-1408, -1112, 0),
                      (-1408, -1240, ROOF), (-1408, -1112, ROOF)], "SNOW", top="SNOW"))     # climbable snowbank
 
@@ -443,22 +443,23 @@ W.extend(wall_x(X0 + LIN, X1 - LIN, Y0, Y0 + LIN, HF, HC, "HALLWALL", [(SDOOR[0]
 IX0, IX1, IY0, IY1 = X0 + LIN, X1 - LIN, Y0 + LIN, Y1 - LIN
 # BattleAxe entrance: landing + stairs down (north) along the west wall
 W.append(box(IX0, -48, HF, IX0 + 64, 48, BF, "HALLWALL", top="STAGEFLOOR"))
-for k in range(1, 18):
-    W.append(box(IX0, 48 + 16 * (k - 1), HF, IX0 + 64, 48 + 16 * k, BF - 16 * k, "HALLWALL", top="ARCADECARPET"))
+for j in range(1, 35):                                     # 8-unit risers
+    W.append(box(IX0, 48 + 8 * (j - 1), HF, IX0 + 64, 48 + 8 * j, BF - 8 * j, "HALLWALL", top="ARCADECARPET"))
 # Crescent entrance: landing + stairs down (south) along the east wall
 W.append(box(IX1 - 64, -48, HF, IX1, 48, BF, "HALLWALL", top="STAGEFLOOR"))
-for k in range(1, 18):
-    W.append(box(IX1 - 64, -48 - 16 * k, HF, IX1, -48 - 16 * (k - 1), BF - 16 * k, "HALLWALL", top="ARCADECARPET"))
+for j in range(1, 35):
+    W.append(box(IX1 - 64, -48 - 8 * j, HF, IX1, -48 - 8 * (j - 1), BF - 8 * j, "HALLWALL", top="ARCADECARPET"))
 # blue-house reveal: mezzanine + stairs down (west) along the north wall
 W.append(box(PX0 - 32, 264, HF, PX1 + 32, IY1, -320, "HALLWALL", top="STAGEFLOOR"))
 W.append(box(PX0 - 32, 260, -320, PX1 + 32, 264, -288, "HALLWALL"))
 DECOR.append(box(PX0 - 32, 259, -288, PX1 + 32, 265, -284, "STRIP_PINK"))
-for k in range(1, 9):
-    W.append(box(PX0 - 32 - 24 * k, 296, HF, PX0 - 32 - 24 * (k - 1), IY1, -320 - 16 * k, "HALLWALL", top="ARCADECARPET"))
+for j in range(1, 17):                                     # 8-unit risers
+    W.append(box(PX0 - 32 - 12 * j, 296, HF, PX0 - 32 - 12 * (j - 1), IY1, -320 - 8 * j, "HALLWALL", top="ARCADECARPET"))
 # stage, backdrop, match board, neon sign
 W.append(box(-320, IY0, HF, 320, -280, HF + 32, "HALLWALL", top="STAGEFLOOR"))
-W.append(box(-140, -280, HF, 140, -256, HF + 16, "HALLWALL", top="STAGEFLOOR"))          # step up onto the stage
-W.append(box(200, -280, HF, 300, -256, HF + 16, "HALLWALL", top="STAGEFLOOR"))           # step by the teleport pad
+for x0, x1 in ((-140, 140), (200, 300)):                  # 8-unit steps up onto the stage, centre and teleport pad
+    for i, z in enumerate((24, 16, 8)):
+        W.append(box(x0, -280 + 12 * i, HF, x1, -268 + 12 * i, HF + z, "HALLWALL", top="STAGEFLOOR"))
 DECOR.append(sign("STAGEBACK", -232, IY0, HF + 32, 232, IY0 + 2, -200, "n"))
 DECOR.append(sign("MATCHBOARD", -168, IY0 + 2, -352, 168, IY0 + 6, -268, "n"))
 DECOR.append(sign("NEON_JC", -240, IY0, -192, 240, IY0 + 6, -72, "n"))
@@ -643,20 +644,21 @@ def W_(x, y, z): item(WEP[wi[0] % len(WEP)], x, y, z); wi[0] += 1
 def A_(x, y, z): item(AMM[wi[0] % len(AMM)], x, y, z); wi[0] += 1
 for (px, py) in PODS:                                  # hall: between pods
     W_(px, py + (128 if py > 0 else -128) * 0 + 128 * (1 if py < 0 else -1), HF + 10)
-for (x, y) in [(-650, 0), (650, 0), (0, 10), (-320, 10), (320, 10), (0, -250)]: A_(x, y, HF + 10)
+for (x, y) in [(-650, 0), (650, 0), (0, 10), (-320, 10), (320, 10), (0, -220)]: A_(x, y, HF + 10)
 item("weapon_gauss", 0, -330, HF + 42); item("weapon_egon", 0, 330, HF + 10)
 for (x, y) in TL[::2]: W_(x, y + (20 if y > 0 else -20) * 0, BF + 10)
 for h in HOUSES:
     x, y = L2W(h, -120, -160); W_(x, y, 10)
     x, y = L2W(h, 100, -100); A_(x, y, BF + 10)
 for (x, y) in [(-2000, 0), (-1400, -300), (0, 620), (0, -620), (-1100, 0), (500, 0), (-500, 0), (1150, 0)]: W_(x, y, 10)
-for (x, y) in [(-1152, 1150), (-384, 1150), (1152, -1150), (-1152, -1150), (1504, 100), (1440, 576)]: W_(x, y, ROOF + 10)
+# roof weapons out on the bridges and open roofs, away from the roof spawns (strong weapons in risky spots)
+for (x, y) in [(-768, 1056), (-384, 1150), (768, -1056), (-1152, -1150), (1440, 352), (1440, 576)]: W_(x, y, ROOF + 10)
 item("weapon_crossbow", 384, 1200, ROOF + 10); item("weapon_rpg", -384, -1200, ROOF + 10)
 for h in HOUSES:
-    x, y = L2W(h, -60, -150); spawn(x, y, 0, 0)
-for (x, y) in [(-700, 576), (300, 576), (-1024, -200), (1024, 200), (-300, -576), (800, -576)]: spawn(x, y, BF, 0)
-for (x, y) in [(-600, -260), (650, 200), (-320, 40), (320, -40), (0, 60), (-650, 300)]: spawn(x, y, HF, 0)
-for (x, y) in [(-1800, 0), (-2400, 60), (-760, -120), (600, -300), (1600, -100)]: spawn(x, y, 0, 0)
+    x, y = L2W(h, 140, -60); spawn(x, y, 0, 0)          # kitchen side, across the room from the house's weapon
+for (x, y) in [(-700, 576), (300, 576), (-1024, -200), (1024, 200), (-300, -576), (250, -576)]: spawn(x, y, BF, 0)
+for (x, y) in [(-300, -240), (650, 200), (-720, -160), (720, 160), (-560, 330), (-650, 300)]: spawn(x, y, HF, 0)
+for (x, y) in [(-1700, 60), (-2400, 60), (-760, -120), (600, -300), (1600, -100)]: spawn(x, y, 0, 0)
 for (x, y) in [(-1152, 1150), (1152, -1150), (1504, -100)]: spawn(x, y, ROOF, 0)
 
 for cls, x, y, z in ITEMS:
