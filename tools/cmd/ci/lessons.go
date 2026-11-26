@@ -16,11 +16,11 @@ import (
 )
 
 // Areas a lesson can belong to, in the order AGENTS.md lists them.
-var lessonAreas = []string{"workflow", "geometry", "lighting", "textures", "entities", "content", "ci", "github", "go", "python"}
+var lessonAreas = []string{"workflow", "geometry", "lighting", "textures", "entities", "content", "ci", "github", "go"}
 
 // areaNames are the headings AGENTS.md uses for the areas.
 var areaNames = map[string]string{"workflow": "Workflow", "geometry": "Geometry", "lighting": "Lighting", "textures": "Textures",
-	"entities": "Entities", "content": "Content", "ci": "CI", "github": "GitHub", "go": "Go", "python": "Python"}
+	"entities": "Entities", "content": "Content", "ci": "CI", "github": "GitHub", "go": "Go"}
 
 var (
 	errBadLessons = errors.New("lessons need fixing")

@@ -1,16 +1,15 @@
 # Half-Life 1 map pipeline.  Every map lives in maps/<name>/ and builds into build/<name>/.
-#   make build MAP=prairieloop     generate + compile (SDHLT: full VIS + full lighting) + package -> build/prairieloop/prairieloop.zip
+#   make build MAP=prairieloop     generate (go run ./maps/<name>) + compile (SDHLT: full VIS + full lighting) + package -> build/prairieloop/prairieloop.zip
 #   make build MAP=x LIGHT=quick VIS=fast   a much faster draft compile while iterating locally
 #   make lint                      golangci-lint: gofmt, go vet, staticcheck, errcheck, unused (tools/.golangci.yml)
 #   make test  MAP=prairieloop     structure/limits, placements, wiring, walk routes
 #   make views MAP=prairieloop     preview images  -> build/prairieloop/previews/
-#   make video MAP=prairieloop     walkthrough mp4 + Discord-size copy (maps with video/walkthrough.py)
+#   make video MAP=prairieloop     walkthrough mp4 + Discord-size copy (maps with video/main.go)
 #   make all                       build + test every map
 #   make readme [V=<commit>]       regenerate README screenshot sections (V: a previews commit, so browsers refetch
 #                                  images) and the lessons index in AGENTS.md
 # Long steps run under `timeout` and print progress; a silent process is a bug.
 
-PY      ?= python3
 MAP     ?=
 MAPS    := $(filter-out _template,$(notdir $(wildcard maps/*)))
 BD       = build/$(MAP)
@@ -76,7 +75,7 @@ $(MAPCHECK) $(RENDER) $(CI) &: $(GO_SRC)
 tools: $(MAPCHECK) $(RENDER) $(CI)
 
 build: check-map $(SDHLT)/sdHLRAD $(CI)
-	timeout $(TIMEOUT) $(PY) maps/$(MAP)/build.py
+	timeout $(TIMEOUT) go run ./maps/$(MAP)
 	@echo "compiling $(MAP) with SDHLT ($(LIGHT) lighting, $(VIS) vis)"
 	$(call compile,$(BD),$(MAP))
 	$(CI) package $(MAP)
@@ -85,19 +84,18 @@ test: check-map $(MAPCHECK)
 	$(MAPCHECK) structure $(BD)/$(MAP).bsp
 	$(MAPCHECK) placements $(BD)/$(MAP).bsp
 	$(MAPCHECK) wiring $(BD)/$(MAP).bsp
-	@if [ -f maps/$(MAP)/tests/routes.py ]; then \
-	  ROUTES_JSON=1 $(PY) maps/$(MAP)/tests/routes.py > $(BD)/routes.json && \
-	  timeout 900 $(MAPCHECK) routes $(BD)/$(MAP).bsp $(BD)/routes.json; fi
+	@mkdir -p $(BD) && go run ./maps/$(MAP) routes > $(BD)/routes.json
+	timeout 900 $(MAPCHECK) routes $(BD)/$(MAP).bsp $(BD)/routes.json
 
 views: check-map $(RENDER)
-	$(PY) -m tools.mapkit.views $(MAP) > $(BD)/views.json
+	@mkdir -p $(BD) && go run ./maps/$(MAP) views > $(BD)/views.json
 	timeout 900 $(RENDER) views $(BD)/$(MAP).bsp $(BD)/valve $(BD)/views.json $(BD)/previews
 
 video: check-map
-	@test -f maps/$(MAP)/video/walkthrough.py || (echo "$(MAP) has no video/walkthrough.py"; exit 2)
-	timeout 900  $(PY) maps/$(MAP)/video/walkthrough.py check
-	timeout 3600 $(PY) maps/$(MAP)/video/walkthrough.py render
-	timeout 900  $(PY) maps/$(MAP)/video/walkthrough.py audio
+	@test -f maps/$(MAP)/video/main.go || (echo "$(MAP) has no video/main.go"; exit 2)
+	timeout 900  go run ./maps/$(MAP)/video check
+	timeout 3600 go run ./maps/$(MAP)/video render
+	timeout 900  go run ./maps/$(MAP)/video audio
 	cd $(BD)/video && ls chunk_??.mp4 | sort | sed "s/^/file '/; s/$$/'/" > list.txt \
 	  && ffmpeg -y -loglevel error -f concat -safe 0 -i list.txt -c copy video_only.mp4 \
 	  && ffmpeg -y -loglevel error -i video_only.mp4 -i audio.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 160k -shortest ../$(MAP)_walkthrough.mp4 \
@@ -113,9 +111,11 @@ readme: $(CI)
 	$(CI) lessons
 
 # golangci-lint (config: tools/.golangci.yml) covers gofmt, go vet, staticcheck, errcheck, unused and ineffassign.
+# Go's ./... skips directories starting with _, so the template map is listed on its own.
+GO_PKGS = ./... ./maps/_template
 # Install v2.15.0, the version CI pins: https://golangci-lint.run/docs/welcome/install/local/
 lint:
-	@if command -v golangci-lint >/dev/null; then timeout 600 golangci-lint run -c tools/.golangci.yml ./...; else \
+	@if command -v golangci-lint >/dev/null; then timeout 600 golangci-lint run -c tools/.golangci.yml $(GO_PKGS); else \
 	  echo "golangci-lint not installed (CI runs it); falling back to gofmt + go vet"; \
-	  test -z "$$(gofmt -l tools)" || (echo "gofmt needed:"; gofmt -l tools; exit 1); \
-	  go vet ./...; fi
+	  test -z "$$(gofmt -l tools maps)" || (echo "gofmt needed:"; gofmt -l tools maps; exit 1); \
+	  go vet $(GO_PKGS); fi

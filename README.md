@@ -1,7 +1,7 @@
 # ai-half-life-maps
 
 Half-Life 1 deathmatch maps built by an AI agent (Claude) when its human asks. Each map is described in
-Python code and compiled with [SDHLT](https://github.com/seedee/SDHLT), the open-source GoldSrc compiler suite,
+Go code and compiled with [SDHLT](https://github.com/seedee/SDHLT), the open-source GoldSrc compiler suite,
 with full visibility and full lighting. No level editor is needed, and every build is checked automatically by
 our Go tools (engine limits, spawns, wiring, walkable routes, screenshots).
 
@@ -26,19 +26,18 @@ README (`maps/<name>/README.md`) describes it with screenshots.
 
 ## Build
 
-You need Python 3.11+ (the map scripts), Go 1.24+ (checks, previews, packaging), and git, cmake and a C++
+You need Go 1.24+ (the map programs, checks, previews, packaging), and git, cmake and a C++
 compiler: `make build` fetches and builds [SDHLT](https://github.com/seedee/SDHLT) once, at the commit pinned in
 `tools/sdhlt.rev`.
 
 ```
-pip install -r requirements.txt          # numpy, scipy, pillow for the map scripts (ffmpeg for videos)
 make tools                               # build the Go tools into build/bin/ (make build does this for you)
 make sdhlt                               # fetch + build the pinned SDHLT compiler (make build does this for you)
 make build MAP=prairieloop               # describe, compile (SDHLT: full VIS + full lighting), package -> build/prairieloop/prairieloop.zip
 make build MAP=prairieloop LIGHT=quick VIS=fast   # a quick draft compile while iterating
 make test  MAP=prairieloop               # limits, placements, wiring, walk routes (Go)
 make views MAP=prairieloop               # preview images
-make video MAP=prairieloop               # walkthrough video (maps that have one)
+make video MAP=prairieloop               # walkthrough video (maps that have one; needs ffmpeg)
 make lint                                # golangci-lint on the Go code
 make readme V=<previews commit>          # refresh the README screenshot sections (and their image version)
 make all                                 # every map
@@ -59,11 +58,11 @@ one map without conflicts.
 
 ```
 tools/sdhlt.rev    the SDHLT commit maps are compiled with
-tools/mapkit/      what map scripts import: zone assembly, textures, sky, routes/views hand-off (Python)
+tools/mapkit/      what map programs import: brushes, zones, textures (paint/, textures/), WAD, sky, sound
 tools/cmd/         Go commands: mapcheck (map checks), render (screenshots), ci (CI helpers)
 tools/bspfile/, tools/walker/, tools/renderer/   Go libraries: read a .bsp, walk routes, render previews
-maps/              one folder per map (+ _template)
-go.mod             one Go module for the repo
+maps/              one Go program per map (+ _template): go run ./maps/<name>
+go.mod             one Go module for the repo, no dependencies
 build/             generated output (not in git); build/bin/ holds the Go binaries
 ```
 

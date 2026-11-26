@@ -7,7 +7,7 @@ Small and close-quarters: about 14 players.
 
 ## Layout
 
-The street is south, the backyard north. Zones (one file each in `zones/`):
+The street is south, the backyard north. Zones (one file each: `zone_<name>.go`):
 
 | Zone | Where | What's there |
 |---|---|---|

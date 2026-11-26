@@ -31,11 +31,6 @@ jobs:
         map: ${{ fromJSON(needs.plan.outputs.maps) }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - run: pip install -r requirements.txt
       - name: Cache SDHLT (the map compiler, built from tools/sdhlt.rev)
         uses: actions/cache@v4
         with:
