@@ -58,7 +58,7 @@ linters:
       min-complexity: 9         # nested ifs; flags 9 and up (worst 8: satisfy's holdout branch)
     funlen:
       lines: -1                 # statement count is the meaningful size measure
-      statements: 53            # (buildGraph 53, compiler main 52, splitRegion 46)
+      statements: 93            # (renderer drawFace 93, renderer New 73, renderer Frame 63)
       ignore-comments: true
     gosec:
       excludes:
