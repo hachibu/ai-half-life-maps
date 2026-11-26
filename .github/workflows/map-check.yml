@@ -43,8 +43,8 @@ jobs:
           install-only: true
       - name: Go lint (golangci-lint; config in tools/.golangci.yml)
         run: make lint
-      - name: Go compiler + scorer parity with the Python versions
-        run: pip install -q -r requirements.txt && make compiler-parity
+      - name: Go compiler + scorer output matches the committed golden values
+        run: pip install -q -r requirements.txt && make golden
       - id: pick
         name: Pick maps to build
         run: |

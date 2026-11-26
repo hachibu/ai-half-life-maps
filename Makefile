@@ -1,7 +1,7 @@
 # Half-Life 1 map pipeline.  Every map lives in maps/<name>/ and builds into build/<name>/.
 #   make build MAP=prairieloop     generate + compile (Go: tools/bsp/bspc) + package -> build/prairieloop/prairieloop.zip
-#                                  COMPILER=py uses the original Python compiler (tools/bsp/compile.py)
-#   make compiler-parity           Go and Python compiler + scorer must agree exactly on the template map
+#   make golden                    compiler + scorer output (template map, prairieloop) must match the committed golden values
+#   make golden-update             re-record the golden values after an intended output change (commit them)
 #   make lint                      golangci-lint: gofmt, go vet, staticcheck, errcheck, unused (tools/.golangci.yml)
 #   make test  MAP=prairieloop     structure/limits, placements, wiring, walk routes
 #   make views MAP=prairieloop     preview images  -> build/prairieloop/previews/
@@ -19,7 +19,7 @@ MAPS    := $(filter-out _template,$(notdir $(wildcard maps/*)))
 BD       = build/$(MAP)
 TIMEOUT ?= 1800
 
-.PHONY: bspc lint compiler-parity build test views video all list check-map readme next ledger pipeline-test quality holdout-encrypt
+.PHONY: bspc lint golden golden-out golden-update build test views video all list check-map readme next ledger pipeline-test quality holdout-encrypt
 
 check-map:
 	@test -n "$(MAP)" || (echo "usage: make <target> MAP=<one of: $(MAPS)>"; exit 2)
@@ -29,7 +29,6 @@ list:
 	@echo $(MAPS)
 
 BSPC     = build/bin/bspc
-COMPILER ?= go
 
 SATISFY  = build/bin/satisfy
 
@@ -41,13 +40,9 @@ $(SATISFY): $(wildcard tools/checks/satisfy/*.go) go.mod
 
 bspc: $(BSPC) $(SATISFY)
 
-build: check-map $(if $(filter go,$(COMPILER)),$(BSPC))
+build: check-map $(BSPC)
 	timeout $(TIMEOUT) $(PY) maps/$(MAP)/build.py
-ifeq ($(COMPILER),go)
 	timeout $(TIMEOUT) $(BSPC) $(BD)/$(MAP).map $(BD)/$(MAP).wad $(BD)/$(MAP).bsp
-else
-	timeout $(TIMEOUT) $(PY) -u -m tools.bsp.compile $(BD)/$(MAP).map $(BD)/$(MAP).wad $(BD)/$(MAP).bsp
-endif
 	$(PY) -m tools.package $(MAP)
 
 test: check-map
@@ -96,15 +91,37 @@ holdout-encrypt:
 readme:
 	$(PY) -m tools.readme
 
-compiler-parity: $(BSPC) $(SATISFY)
-	$(PY) maps/_template/build.py
-	$(BSPC) build/_template/_template.map build/_template/_template.wad build/_template/parity_go.bsp > /dev/null
-	$(PY) -m tools.bsp.compile build/_template/_template.map build/_template/_template.wad build/_template/parity_py.bsp > /dev/null
-	cmp build/_template/parity_go.bsp build/_template/parity_py.bsp && echo "compiler parity: identical"
-	SATISFACTION_SEED=4242 $(SATISFY) build/_template/parity_go.bsp --json build/_template/sat_go.json > /dev/null
-	SATISFACTION_SEED=4242 $(PY) -m tools.checks.satisfaction build/_template/parity_py.bsp --json build/_template/sat_py.json > /dev/null
-	$(PY) -c "import json; g, p = (json.load(open('build/_template/sat_%s.json' % k)) for k in ('go', 'py')); \
-	  ks = ('score', 'metrics', 'samples', 'nodes'); assert all(g[k] == p[k] for k in ks), (g, p); print('scorer parity: identical')"
+# Go is the only compiler and scorer, so their output is pinned to committed golden values: the compiled BSP's
+# SHA-256 and the satisfaction result (seed 4242) for the template map and prairieloop (a real map whose metrics
+# aren't all 1.0). Any change to that output has to be deliberate (`make golden-update`) and shows in the PR diff.
+GOLDEN_MAPS = _template prairieloop
+GOLDEN_BSP  = tools/bsp/bspc/golden.sha256
+GOLDEN_SAT  = tools/checks/satisfy/golden.json
+GO_OUT      = build/golden
+
+golden-out: $(BSPC) $(SATISFY)
+	@mkdir -p $(GO_OUT); rm -f $(GO_OUT)/*
+	@set -e; for m in $(GOLDEN_MAPS); do \
+	  echo "golden: $$m"; \
+	  timeout 900 $(PY) maps/$$m/build.py > /dev/null; \
+	  timeout 900 $(BSPC) build/$$m/$$m.map build/$$m/$$m.wad $(GO_OUT)/$$m.bsp > /dev/null; \
+	  (cd $(GO_OUT) && sha256sum $$m.bsp) >> $(GO_OUT)/golden.sha256; \
+	  SATISFACTION_SEED=4242 timeout 900 $(SATISFY) $(GO_OUT)/$$m.bsp --json $(GO_OUT)/$$m.sat.json > /dev/null; \
+	done
+	$(PY) -c "import json, sys; out = {}; \
+	  [out.__setitem__(m, {k: v for k, v in json.load(open('$(GO_OUT)/%s.sat.json' % m)).items() if k != 'seconds'}) for m in sys.argv[1:]]; \
+	  print(json.dumps(out, indent=1, sort_keys=True))" $(GOLDEN_MAPS) > $(GO_OUT)/golden.json
+
+golden: golden-out
+	@diff -u $(GOLDEN_BSP) $(GO_OUT)/golden.sha256 && echo "compiler golden: identical" || \
+	  (echo "compiler output changed. If that is intended, run make golden-update and commit the result."; exit 1)
+	@diff -u $(GOLDEN_SAT) $(GO_OUT)/golden.json && echo "scorer golden: identical" || \
+	  (echo "scorer output changed. If that is intended, run make golden-update and commit the result."; exit 1)
+
+golden-update: golden-out
+	cp $(GO_OUT)/golden.sha256 $(GOLDEN_BSP)
+	cp $(GO_OUT)/golden.json $(GOLDEN_SAT)
+	@echo "updated $(GOLDEN_BSP) and $(GOLDEN_SAT); commit them and say in the PR why the output changed"
 
 # golangci-lint (config: tools/.golangci.yml) covers gofmt, go vet, staticcheck, errcheck, unused and ineffassign.
 # Install v2.15.0, the version CI pins: https://golangci-lint.run/docs/welcome/install/local/

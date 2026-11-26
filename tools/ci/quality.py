@@ -12,18 +12,19 @@ import subprocess
 import sys
 from pathlib import Path
 
-from tools.checks import holdout, satisfaction
+from tools.checks import holdout
 
 
-SATISFY = Path("build/bin/satisfy")       # Go port of tools/checks/satisfaction.py (`make bspc`); same scores
+SATISFY = Path("build/bin/satisfy")       # the Go satisfaction scorer (tools/checks/satisfy; `make bspc`)
+TOLERANCE = 2.0                           # a PR may lower a map's satisfaction score by at most this much
 
 
 def satisfaction_score(bsp):
-    if SATISFY.exists():
-        out = Path(bsp).with_suffix(".satisfaction.json")
-        subprocess.run([str(SATISFY), bsp, "--json", str(out)], check=True)
-        return json.loads(out.read_text())
-    return satisfaction.score(bsp)
+    if not SATISFY.exists():
+        raise SystemExit("quality: %s is missing; run `make bspc`" % SATISFY)
+    out = Path(bsp).with_suffix(".satisfaction.json")
+    subprocess.run([str(SATISFY), bsp, "--json", str(out)], check=True)
+    return json.loads(out.read_text())
 
 
 def measure(name):
@@ -50,7 +51,7 @@ def compare(artifacts, baseline):
         b = base.get(m, {})
         s0, s1 = b.get("satisfaction"), q["satisfaction"]["score"]
         h0, h1 = b.get("holdout"), q["holdout"].get("rate")
-        if s0 is not None and s1 < s0 - satisfaction.TOLERANCE:
+        if s0 is not None and s1 < s0 - TOLERANCE:
             bad.append("%s satisfaction dropped %.1f -> %.1f (%s)" % (m, s0, s1, q["satisfaction"]["metrics"]))
         if h0 is not None and h1 is not None and h1 < h0:
             bad.append("%s holdout pass rate dropped %.1f%% -> %.1f%%" % (m, h0, h1))

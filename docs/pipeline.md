@@ -64,11 +64,11 @@ Views: `events`, `latest` (last state per item and gate), `merges`, `failures`, 
 
 ## Quality: satisfaction and holdout scenarios
 
-- **Satisfaction** (`tools/checks/satisfaction.py`): thousands of standable points sampled on a jittered grid
+- **Satisfaction** (`tools/checks/satisfy`, Go): thousands of standable points sampled on a jittered grid
   and linked wherever the walker can move; scores weapon rush from spawns, one-way traps, reachable items and
   spawn connectivity (0-100). CI seeds the sample with the `SATISFACTION_SEED` secret. A PR may not lower a
   map's score by more than 2 points.
-- **Holdout scenarios** (`tools/checks/holdout.py`): human-written checks the agents can't read, encrypted in
+- **Holdout scenarios** (`tools/checks/holdout.py`, evaluated by `satisfy`): human-written checks the agents can't read, encrypted in
   `holdout/scenarios.enc` with the `HOLDOUT_KEY` secret. CI reports only a pass rate; it may not drop.
 
 ## Humans

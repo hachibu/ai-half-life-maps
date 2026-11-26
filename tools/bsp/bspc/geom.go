@@ -1,8 +1,8 @@
 package main
 
-// Geometry helpers. Every formula mirrors tools/bsp/compile.py (the original Python compiler) operation by
-// operation, so the Go compiler produces the same BSP. Keep the order of floating-point operations when
-// editing: (a*b + c*d) + e*f is not the same number as a*b + (c*d + e*f).
+// Geometry helpers. The floating-point operation order is what produced the golden output (`make golden`):
+// (a*b + c*d) + e*f is not the same number as a*b + (c*d + e*f), so reordering is an output change, not a
+// refactor. See README.md.
 
 import (
 	"math"

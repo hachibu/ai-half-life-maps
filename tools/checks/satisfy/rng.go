@@ -1,7 +1,7 @@
 package main
 
 // numpy.random.default_rng(seed): SeedSequence(seed) -> PCG64 (XSL-RR 128/64) -> next_double.
-// Reproduced exactly so the Go scorer samples the same points as the Python one.
+// Reproduced exactly (it was ported from a Python scorer); changing it moves every sample and the golden scores.
 
 import "math/bits"
 

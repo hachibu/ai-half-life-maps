@@ -1,8 +1,8 @@
-// satisfy: Go port of tools/checks/satisfaction.py (the 0-100 playability score). Same sampling, same
-// random numbers (numpy's default_rng reproduced in rng.go), same walker and graph, so it prints the same
-// score; the navigation graph is built on all cores.
+// satisfy: the 0-100 playability score, and the holdout scenarios, on a navigation graph of sampled standable
+// points (built on all cores). Its output is pinned by `make golden`; see README.md for the metrics.
 //
-//	satisfy build/<map>/<map>.bsp [--json out.json]      (seed: SATISFACTION_SEED, default 0)
+//	satisfy build/<map>/<map>.bsp [--json out.json]                          (seed: SATISFACTION_SEED, default 0)
+//	satisfy build/<map>/<map>.bsp --holdout scenarios.json|- [--json out.json]   (pass rate only)
 package main
 
 import (
@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"regexp"
@@ -264,23 +265,18 @@ func mean(xs []bool) float64 {
 	return s / float64(len(xs))
 }
 
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: satisfy map.bsp [--json out.json]")
-		os.Exit(2)
-	}
-	t0 := time.Now()
-	seed := uint64(0)
-	if s := os.Getenv("SATISFACTION_SEED"); s != "" {
-		v, err := strconv.ParseUint(s, 10, 64)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "SATISFACTION_SEED must be a non-negative integer")
-			os.Exit(2)
-		}
-		seed = v
-	}
+// graph is the navigation graph both the score and the holdout scenarios use.
+type graph struct {
+	pts    []pt
+	edges  [][]edge
+	base   int // pts[:base] are sampled; then one node per spawn, then one per standable item
+	spawns []pt
+	items  []item
+	sp     []int // spawn nodes
+}
+
+func buildGraph(m *BSP, seed uint64) *graph {
 	rng := NewRNG(seed)
-	m := loadBSP(os.Args[1])
 	var spawns []pt
 	var items []item
 	for _, e := range m.ents {
@@ -298,7 +294,7 @@ func main() {
 	spacing := math.Max(28.0, math.Sqrt(area/9000))
 	link := spacing * 1.75
 
-	// columns: same jitter sequence as Python (x then y per column, column-major over the grid)
+	// columns: one jitter pair (x then y) per column, column-major over the grid
 	xs := arange(m.mins[0]+24, m.maxs[0]-24, spacing)
 	ys := arange(m.mins[1]+24, m.maxs[1]-24, spacing)
 	type col struct{ x, y float64 }
@@ -351,7 +347,7 @@ func main() {
 		}
 	}
 
-	// navigation graph: cells keyed like Python's (int(x // LINK), int(y // LINK))
+	// navigation graph: cells keyed by (floor(x / link), floor(y / link))
 	type key struct{ a, b int }
 	cell := map[key][]int{}
 	keys := make([]key, len(pts))
@@ -384,12 +380,16 @@ func main() {
 		}
 		edges[i] = es
 	})
-
-	// metrics
 	var sp []int
 	for i := range spawns {
 		sp = append(sp, base+i)
 	}
+	return &graph{pts: pts, edges: edges, base: base, spawns: spawns, items: items, sp: sp}
+}
+
+// score computes the four metrics and the 0-100 score.
+func score(g *graph) (float64, []float64) {
+	pts, edges, items, sp := g.pts, g.edges, g.items, g.sp
 	inf := math.Inf(1)
 	reach := dijkstra(edges, sp, inf)
 	rev := make([][]edge, len(pts))
@@ -441,8 +441,7 @@ func main() {
 		}
 		return mean(xs)
 	}
-	var reachKeys []bool
-	// Python iterates `u in back for u in reach` over dict insertion order; the mean doesn't depend on order
+	var reachKeys []bool // the mean doesn't depend on map iteration order
 	for u := range reach {
 		_, ok := back[u]
 		reachKeys = append(reachKeys, ok)
@@ -452,25 +451,178 @@ func main() {
 		_, ok := reach[p]
 		itemsOK = append(itemsOK, p >= 0 && ok)
 	}
-	names := []string{"weapon_rush", "no_traps", "items", "spawn_links"}
 	vals := []float64{metric(rush, 1), metric(reachKeys, 0), metric(itemsOK, 1), metric(links, 1)}
 	total := ((vals[0] + vals[1]) + vals[2]) + vals[3]
-	score := pyRound(100*(total/4), 1)
+	return pyRound(100*(total/4), 1), vals
+}
+
+// scenario is one holdout check (see tools/checks/holdout.py for the format).
+type scenario struct {
+	From   json.RawMessage `json:"from"`   // "spawns" or [x, y, z_floor]
+	To     json.RawMessage `json:"to"`     // an entity class or [x, y, z_floor]
+	Within *float64        `json:"within"` // running distance limit; none = any distance
+}
+
+// point resolves [x, y, z_floor] to the nearest graph node, or -1.
+func (g *graph) point(raw json.RawMessage) (int, error) {
+	var v []float64
+	if err := json.Unmarshal(raw, &v); err != nil || len(v) != 3 {
+		return -1, fmt.Errorf("a point must be [x, y, z_floor]")
+	}
+	return nearest(g.pts, v[0], v[1], v[2]), nil
+}
+
+// passes: from every start, some target is reachable within the limit (and there is at least one target).
+func (g *graph) passes(s scenario) (bool, error) {
+	var starts []int
+	var from string
+	if json.Unmarshal(s.From, &from) == nil {
+		if from != "spawns" {
+			return false, fmt.Errorf(`"from" must be "spawns" or [x, y, z_floor]`)
+		}
+		starts = g.sp
+	} else {
+		p, err := g.point(s.From)
+		if err != nil {
+			return false, err
+		}
+		starts = []int{p}
+	}
+	tgt := map[int]bool{}
+	var cls string
+	if json.Unmarshal(s.To, &cls) == nil {
+		for _, it := range g.items {
+			if it.cls == cls {
+				if t := nearest(g.pts, it.x, it.y, it.z); t >= 0 {
+					tgt[t] = true
+				}
+			}
+		}
+	} else {
+		p, err := g.point(s.To)
+		if err != nil {
+			return false, err
+		}
+		if p >= 0 {
+			tgt[p] = true
+		}
+	}
+	if len(tgt) == 0 {
+		return false, nil
+	}
+	limit := math.Inf(1)
+	if s.Within != nil {
+		limit = *s.Within
+	}
+	for _, st := range starts {
+		if st < 0 {
+			return false, nil
+		}
+		d := dijkstra(g.edges, []int{st}, limit)
+		found := false
+		for t := range tgt {
+			if _, ok := d[t]; ok {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func fail(format string, a ...any) {
+	fmt.Fprintf(os.Stderr, "satisfy: "+format+"\n", a...)
+	os.Exit(2)
+}
+
+func writeJSON(path string, v any) {
+	b, err := json.MarshalIndent(v, "", " ")
+	if err != nil {
+		panic(err)
+	}
+	if err := os.WriteFile(path, b, 0o644); err != nil {
+		panic(err)
+	}
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		fail("usage: satisfy map.bsp [--json out.json] [--holdout scenarios.json|-]")
+	}
+	var jsonOut, holdoutIn string
+	for i, a := range os.Args {
+		if i+1 < len(os.Args) {
+			switch a {
+			case "--json":
+				jsonOut = os.Args[i+1]
+			case "--holdout":
+				holdoutIn = os.Args[i+1]
+			}
+		}
+	}
+	t0 := time.Now()
+	seed := uint64(0)
+	if s := os.Getenv("SATISFACTION_SEED"); s != "" {
+		v, err := strconv.ParseUint(s, 10, 64)
+		if err != nil {
+			fail("SATISFACTION_SEED must be a non-negative integer")
+		}
+		seed = v
+	}
+	m := loadBSP(os.Args[1])
+	g := buildGraph(m, seed)
+
+	if holdoutIn != "" {
+		// The scenarios are secret: read them (usually from stdin), print and write only the pass rate.
+		var raw []byte
+		var err error
+		if holdoutIn == "-" {
+			raw, err = io.ReadAll(os.Stdin)
+		} else {
+			raw, err = os.ReadFile(holdoutIn)
+		}
+		if err != nil {
+			fail("reading holdout scenarios: %v", err)
+		}
+		var sc []scenario
+		if err := json.Unmarshal(raw, &sc); err != nil {
+			fail("holdout scenarios are not a JSON list: %v", err)
+		}
+		ok := 0
+		for i, s := range sc {
+			p, err := g.passes(s)
+			if err != nil {
+				fail("holdout scenario %d: %v", i, err) // the index and the rule only: never print a scenario's contents
+			}
+			if p {
+				ok++
+			}
+		}
+		out := map[string]any{"rate": nil, "n": len(sc)}
+		if len(sc) > 0 {
+			out["rate"] = pyRound(100*float64(ok)/float64(len(sc)), 1)
+		}
+		fmt.Printf("holdout: %v of %d scenarios\n", out["rate"], len(sc))
+		if jsonOut != "" {
+			writeJSON(jsonOut, out)
+		}
+		return
+	}
+
+	sc, vals := score(g)
+	names := []string{"weapon_rush", "no_traps", "items", "spawn_links"}
 	metrics := map[string]float64{}
 	for i, n := range names {
 		metrics[n] = pyRound(vals[i], 3)
 	}
 	secs := pyRound(time.Since(t0).Seconds(), 1)
 	fmt.Printf("satisfaction %5.1f  weapon_rush=%.2f no_traps=%.2f items=%.2f spawn_links=%.2f  (%d sampled points, %.0fs)\n",
-		score, vals[0], vals[1], vals[2], vals[3], base, secs)
-	for i, a := range os.Args {
-		if a == "--json" && i+1 < len(os.Args) {
-			out := map[string]any{"score": score, "metrics": metrics, "samples": base, "nodes": len(pts),
-				"spawns": len(spawns), "items": len(items), "seconds": secs}
-			b, _ := json.MarshalIndent(out, "", " ")
-			if err := os.WriteFile(os.Args[i+1], b, 0o644); err != nil {
-				panic(err)
-			}
-		}
+		sc, vals[0], vals[1], vals[2], vals[3], g.base, secs)
+	if jsonOut != "" {
+		writeJSON(jsonOut, map[string]any{"score": sc, "metrics": metrics, "samples": g.base, "nodes": len(g.pts),
+			"spawns": len(g.spawns), "items": len(g.items), "seconds": secs})
 	}
 }
