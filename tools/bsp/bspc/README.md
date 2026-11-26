@@ -1,7 +1,7 @@
 # bspc: the Go BSP compiler
 
 `make build` compiles maps with this: a Go port of `tools/bsp/compile.py` (kept as the reference,
-`make build COMPILER=py`). Standard library only; `go build` in this folder or `make bspc`.
+`make build COMPILER=py`). Standard library only; `make bspc` (builds `build/bin/bspc` from the repo's `go.mod`).
 
 | map | Python | Go | output |
 |---|---|---|---|

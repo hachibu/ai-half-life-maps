@@ -1,7 +1,8 @@
 # Half-Life 1 map pipeline.  Every map lives in maps/<name>/ and builds into build/<name>/.
-#   make build MAP=prairieloop     generate + compile (Go: go/bspc) + package -> build/prairieloop/prairieloop.zip
+#   make build MAP=prairieloop     generate + compile (Go: tools/bsp/bspc) + package -> build/prairieloop/prairieloop.zip
 #                                  COMPILER=py uses the original Python compiler (tools/bsp/compile.py)
-#   make compiler-parity           Go and Python compilers must produce the same BSP for the template map
+#   make compiler-parity           Go and Python compiler + scorer must agree exactly on the template map
+#   make lint                      gofmt, go vet, staticcheck (if installed)
 #   make test  MAP=prairieloop     structure/limits, placements, wiring, walk routes
 #   make views MAP=prairieloop     preview images  -> build/prairieloop/previews/
 #   make video MAP=prairieloop     walkthrough mp4 + Discord-size copy (maps with video/walkthrough.py)
@@ -18,7 +19,7 @@ MAPS    := $(filter-out _template,$(notdir $(wildcard maps/*)))
 BD       = build/$(MAP)
 TIMEOUT ?= 1800
 
-.PHONY: bspc compiler-parity build test views video all list check-map readme next ledger pipeline-test quality holdout-encrypt
+.PHONY: bspc lint compiler-parity build test views video all list check-map readme next ledger pipeline-test quality holdout-encrypt
 
 check-map:
 	@test -n "$(MAP)" || (echo "usage: make <target> MAP=<one of: $(MAPS)>"; exit 2)
@@ -30,10 +31,15 @@ list:
 BSPC     = build/bin/bspc
 COMPILER ?= go
 
-$(BSPC): $(wildcard go/bspc/*.go) go/bspc/go.mod
-	cd go/bspc && go build -o ../../$(BSPC) .
+SATISFY  = build/bin/satisfy
 
-bspc: $(BSPC)
+$(BSPC): $(wildcard tools/bsp/bspc/*.go) go.mod
+	go build -o $(BSPC) ./tools/bsp/bspc
+
+$(SATISFY): $(wildcard tools/checks/satisfy/*.go) go.mod
+	go build -o $(SATISFY) ./tools/checks/satisfy
+
+bspc: $(BSPC) $(SATISFY)
 
 build: check-map $(if $(filter go,$(COMPILER)),$(BSPC))
 	timeout $(TIMEOUT) $(PY) maps/$(MAP)/build.py
@@ -78,7 +84,7 @@ ledger:
 pipeline-test:
 	$(PY) -m tools.pipeline.test_gates
 
-quality: check-map
+quality: check-map $(SATISFY)
 	timeout 900 $(PY) -m tools.ci.quality measure $(MAP)
 
 # Humans only: encrypt holdout/scenarios.json (never commit it) with the key stored as the HOLDOUT_KEY secret.
@@ -90,8 +96,17 @@ holdout-encrypt:
 readme:
 	$(PY) -m tools.readme
 
-compiler-parity: $(BSPC)
+compiler-parity: $(BSPC) $(SATISFY)
 	$(PY) maps/_template/build.py
 	$(BSPC) build/_template/_template.map build/_template/_template.wad build/_template/parity_go.bsp > /dev/null
 	$(PY) -m tools.bsp.compile build/_template/_template.map build/_template/_template.wad build/_template/parity_py.bsp > /dev/null
 	cmp build/_template/parity_go.bsp build/_template/parity_py.bsp && echo "compiler parity: identical"
+	SATISFACTION_SEED=4242 $(SATISFY) build/_template/parity_go.bsp --json build/_template/sat_go.json > /dev/null
+	SATISFACTION_SEED=4242 $(PY) -m tools.checks.satisfaction build/_template/parity_py.bsp --json build/_template/sat_py.json > /dev/null
+	$(PY) -c "import json; g, p = (json.load(open('build/_template/sat_%s.json' % k)) for k in ('go', 'py')); \
+	  ks = ('score', 'metrics', 'samples', 'nodes'); assert all(g[k] == p[k] for k in ks), (g, p); print('scorer parity: identical')"
+
+lint:
+	@test -z "$$(gofmt -l tools)" || (echo "gofmt needed:"; gofmt -l tools; exit 1)
+	go vet ./...
+	@if command -v staticcheck >/dev/null; then staticcheck ./...; else echo "staticcheck not installed (CI runs it)"; fi

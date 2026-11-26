@@ -35,11 +35,13 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.24"
-          cache-dependency-path: go/bspc/go.mod
-      - name: Go compiler vet + parity with the Python compiler
+          cache-dependency-path: go.mod
+      - name: Go lint (gofmt, go vet, staticcheck)
         run: |
-          (cd go/bspc && go vet ./...)
-          pip install -q -r requirements.txt && make compiler-parity
+          go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
+          PATH="$PATH:$(go env GOPATH)/bin" make lint
+      - name: Go compiler + scorer parity with the Python versions
+        run: pip install -q -r requirements.txt && make compiler-parity
       - id: pick
         name: Pick maps to build
         run: |
@@ -53,7 +55,7 @@ jobs:
           # Rebuild every map only when something that builds or checks maps changed. Docs, the pipeline,
           # the README generator and the other workflows can't change a map, so they build nothing.
           # (main is still rebuilt in full by the release workflow after every merge.)
-          if echo "$CHANGED" | grep -qE '^(go/|tools/(bsp|assets|checks|render|ci)/|tools/(package|mapkit|paths)\.py$|Makefile$|requirements\.txt$|\.github/workflows/map-check\.yml$)'; then
+          if echo "$CHANGED" | grep -qE '^(go\.mod$|tools/(bsp|assets|checks|render|ci)/|tools/(package|mapkit|paths)\.py$|Makefile$|requirements\.txt$|\.github/workflows/map-check\.yml$)'; then
             echo "maps=$ALL" >> "$GITHUB_OUTPUT"
           else
             M=$(echo "$MAPCHANGED" | grep -oE '^maps/[^/]+' | cut -d/ -f2 | sort -u | exists | jq -R . | jq -cs '[.[] | select(length > 0)]')
@@ -79,7 +81,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.24"
-          cache-dependency-path: go/bspc/go.mod
+          cache-dependency-path: go.mod
       - name: Build ${{ matrix.map }}
         run: make build MAP=${{ matrix.map }}
       - name: Test ${{ matrix.map }}
@@ -88,7 +90,7 @@ jobs:
         env:
           SATISFACTION_SEED: ${{ secrets.SATISFACTION_SEED }}
           HOLDOUT_KEY: ${{ secrets.HOLDOUT_KEY }}
-        run: python -m tools.ci.quality measure ${{ matrix.map }}
+        run: make quality MAP=${{ matrix.map }}
       - name: Previews
         if: always()
         run: make views MAP=${{ matrix.map }} || true
