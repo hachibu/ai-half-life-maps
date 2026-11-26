@@ -30,19 +30,22 @@ jobs:
           python-version: "3.12"
       - name: Pipeline self-tests
         run: python -m tools.pipeline.test_gates
+      - name: READMEs up to date
+        run: python -m tools.readme --check
       - id: pick
         name: Pick maps to build
         run: |
           ALL=$(ls -d maps/*/ | xargs -n1 basename | jq -R . | jq -cs .)
           if [ "${{ github.event_name }}" != "pull_request" ]; then echo "maps=$ALL" >> "$GITHUB_OUTPUT"; exit 0; fi
           CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          MAPCHANGED=$(echo "$CHANGED" | grep -vE '^maps/[^/]+/(README\.md|map\.toml)$' || true)   # docs/metadata don't change a map
           echo "$CHANGED"
           exists() { while read -r m; do [ -n "$m" ] && [ -d "maps/$m" ] && echo "$m"; done; }   # deleted maps aren't built
-          echo "direct=$(echo "$CHANGED" | grep -oE '^maps/[^_/][^/]*/' | cut -d/ -f2 | sort -u | exists | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+          echo "direct=$(echo "$MAPCHANGED" | grep -oE '^maps/[^_/][^/]*/' | cut -d/ -f2 | sort -u | exists | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
           if echo "$CHANGED" | grep -qE '^(tools/|Makefile|requirements.txt|\.github/workflows/)'; then
             echo "maps=$ALL" >> "$GITHUB_OUTPUT"
           else
-            M=$(echo "$CHANGED" | grep -oE '^maps/[^/]+' | cut -d/ -f2 | sort -u | exists | jq -R . | jq -cs '[.[] | select(length > 0)]')
+            M=$(echo "$MAPCHANGED" | grep -oE '^maps/[^/]+' | cut -d/ -f2 | sort -u | exists | jq -R . | jq -cs '[.[] | select(length > 0)]')
             echo "maps=$M" >> "$GITHUB_OUTPUT"
           fi
 
