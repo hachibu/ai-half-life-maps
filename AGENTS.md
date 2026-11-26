@@ -22,7 +22,9 @@ the task is ambiguous in a way the code can't settle.
    gate removes it if another claim already covers those paths. Propose new tasks when `next` says `propose`.
 3. **Branch `<you>/<topic>`, one task per PR, `Closes #<task>` in the description.** Change only the task's
    paths (plus a lesson in `docs/lessons/`). Never push to `main`.
-4. **Fill every section of the PR template.** Run `make build test views MAP=<map>` before pushing and look
+4. **Adding, renaming or removing a map or a view? Run `make readme`** (CI fails if you forget). It updates the
+   main README gallery and the map's screenshot grid; set `hero` in map.toml to choose the gallery shot.
+   **Fill every section of the PR template.** Run `make build test views MAP=<map>` before pushing and look
    at the images. Add a named view aimed at every visible change.
 5. **The gates decide, CI merges.** The Pipeline comment on your PR lists every gate. Fix ❌ rows and push;
    ⏳ rows clear on their own. When all are ✅, CI merges. You never merge, and you never ask a human to.

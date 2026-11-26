@@ -4,6 +4,7 @@
 #   make views MAP=prairieloop     preview images  -> build/prairieloop/previews/
 #   make video MAP=prairieloop     walkthrough mp4 + Discord-size copy (maps with video/walkthrough.py)
 #   make all                       build + test every map
+#   make readme                    regenerate README screenshot sections (map gallery, per-map grids)
 #   make next AGENT=claude         the one thing this agent should do now (see docs/pipeline.md)
 #   make ledger                    fetch the ledger branch -> build/ledger/ledger.sqlite + LEDGER.md
 #   make quality MAP=x             satisfaction score (+ holdout pass rate when HOLDOUT_KEY is set)
@@ -15,7 +16,7 @@ MAPS    := $(filter-out _template,$(notdir $(wildcard maps/*)))
 BD       = build/$(MAP)
 TIMEOUT ?= 1800
 
-.PHONY: build test views video all list check-map next ledger pipeline-test quality holdout-encrypt
+.PHONY: build test views video all list check-map readme next ledger pipeline-test quality holdout-encrypt
 
 check-map:
 	@test -n "$(MAP)" || (echo "usage: make <target> MAP=<one of: $(MAPS)>"; exit 2)
@@ -71,3 +72,6 @@ holdout-encrypt:
 	@test -n "$$HOLDOUT_KEY" || (echo "set HOLDOUT_KEY"; exit 2)
 	openssl enc -aes-256-cbc -pbkdf2 -salt -in holdout/scenarios.json -out holdout/scenarios.enc -pass env:HOLDOUT_KEY
 	@echo "wrote holdout/scenarios.enc; delete holdout/scenarios.json"
+
+readme:
+	$(PY) -m tools.readme

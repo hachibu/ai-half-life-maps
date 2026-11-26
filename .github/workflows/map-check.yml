@@ -30,6 +30,8 @@ jobs:
           python-version: "3.12"
       - name: Pipeline self-tests
         run: python -m tools.pipeline.test_gates
+      - name: READMEs up to date
+        run: python -m tools.readme --check
       - id: pick
         name: Pick maps to build
         run: |
