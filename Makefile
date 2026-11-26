@@ -8,7 +8,7 @@
 #   make views MAP=prairieloop     preview images  -> build/prairieloop/previews/
 #   make video MAP=prairieloop     walkthrough mp4 + Discord-size copy (maps with video/walkthrough.py)
 #   make all                       build + test every map
-#   make readme                    regenerate README screenshot sections (map gallery, per-map grids)
+#   make readme [V=<commit>]       regenerate README screenshot sections; V (a previews commit) makes browsers refetch images
 #   make quality MAP=x             satisfaction score (+ holdout pass rate when HOLDOUT_KEY is set)
 # Long steps run under `timeout` and print progress; a silent process is a bug.
 
@@ -132,7 +132,7 @@ holdout-encrypt:
 	@echo "wrote holdout/scenarios.enc; delete holdout/scenarios.json"
 
 readme: $(CI)
-	$(CI) readme
+	$(CI) readme $(if $(V),--version $(V))
 
 # SDHLT's output (draft settings, to keep it quick) and the Go scorer's are pinned to committed golden values: the compiled BSP's
 # SHA-256 and the satisfaction result (seed 4242) for the template map and prairieloop (a real map whose metrics
