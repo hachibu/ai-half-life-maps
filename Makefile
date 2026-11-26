@@ -77,6 +77,7 @@ $(MAPCHECK): $(wildcard tools/checks/mapcheck/*.go tools/bsp/bspfile/*.go tools/
 
 RENDER   = build/bin/render
 BSPINFO  = build/bin/bspinfo
+CI       = build/bin/ci
 
 $(RENDER): $(wildcard tools/render/render/*.go tools/render/renderer/*.go tools/bsp/bspfile/*.go) go.mod
 	go build -o $(RENDER) ./tools/render/render
@@ -84,13 +85,16 @@ $(RENDER): $(wildcard tools/render/render/*.go tools/render/renderer/*.go tools/
 $(BSPINFO): $(wildcard tools/bsp/bspinfo/*.go tools/bsp/bspfile/*.go) go.mod
 	go build -o $(BSPINFO) ./tools/bsp/bspinfo
 
-bspc: $(SATISFY) $(MAPCHECK) $(RENDER) $(BSPINFO)
+$(CI): $(wildcard tools/ci/ci/*.go) go.mod
+	go build -o $(CI) ./tools/ci/ci
 
-build: check-map $(SDHLT)/sdHLRAD
+bspc: $(SATISFY) $(MAPCHECK) $(RENDER) $(BSPINFO) $(CI)
+
+build: check-map $(SDHLT)/sdHLRAD $(CI)
 	timeout $(TIMEOUT) $(PY) maps/$(MAP)/build.py
 	@echo "compiling $(MAP) with SDHLT ($(LIGHT) lighting, $(VIS) vis)"
 	$(call compile,$(BD),$(MAP))
-	$(PY) -m tools.package $(MAP)
+	$(CI) package $(MAP)
 
 test: check-map $(MAPCHECK)
 	$(MAPCHECK) structure $(BD)/$(MAP).bsp
@@ -125,8 +129,8 @@ ledger:
 pipeline-test:
 	$(PY) -m tools.pipeline.test_gates
 
-quality: check-map $(SATISFY)
-	timeout 900 $(PY) -m tools.ci.quality measure $(MAP)
+quality: check-map $(SATISFY) $(CI)
+	timeout 900 $(CI) quality measure $(MAP)
 
 # Humans only: encrypt holdout/scenarios.json (never commit it) with the key stored as the HOLDOUT_KEY secret.
 holdout-encrypt:
@@ -134,8 +138,8 @@ holdout-encrypt:
 	openssl enc -aes-256-cbc -pbkdf2 -salt -in holdout/scenarios.json -out holdout/scenarios.enc -pass env:HOLDOUT_KEY
 	@echo "wrote holdout/scenarios.enc; delete holdout/scenarios.json"
 
-readme:
-	$(PY) -m tools.readme
+readme: $(CI)
+	$(CI) readme
 
 # SDHLT's output (draft settings, to keep it quick) and the Go scorer's are pinned to committed golden values: the compiled BSP's
 # SHA-256 and the satisfaction result (seed 4242) for the template map and prairieloop (a real map whose metrics

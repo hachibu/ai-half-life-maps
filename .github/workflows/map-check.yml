@@ -30,12 +30,12 @@ jobs:
           python-version: "3.12"
       - name: Pipeline self-tests
         run: python -m tools.pipeline.test_gates
-      - name: READMEs up to date
-        run: python -m tools.readme --check
       - uses: actions/setup-go@v5
         with:
           go-version: "1.24"
           cache-dependency-path: go.mod
+      - name: READMEs up to date (map view names come from each map's views.py)
+        run: go run ./tools/ci/ci readme --check
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
@@ -147,18 +147,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-go@v5
         with:
-          python-version: "3.12"
-          cache: pip
-      - run: pip install -r requirements.txt
+          go-version: "1.24"
+          cache-dependency-path: go.mod
+      - name: Build the CI helpers (tools/ci/ci)
+        run: go build -o build/bin/ci ./tools/ci/ci
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
       - name: Quality ratchet against main
         run: |
           git fetch -q origin ledger && git show FETCH_HEAD:scores/main.json > baseline.json 2>/dev/null || echo '{}' > baseline.json
-          python -m tools.ci.quality compare artifacts baseline.json
+          build/bin/ci quality compare artifacts baseline.json
 
   screenshots:
     needs: [plan, build]
@@ -170,11 +171,12 @@ jobs:
       PREFIX: pr-${{ github.event.pull_request.number }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-go@v5
         with:
-          python-version: "3.12"
-          cache: pip
-      - run: pip install -r requirements.txt
+          go-version: "1.24"
+          cache-dependency-path: go.mod
+      - name: Build the CI helpers (tools/ci/ci)
+        run: go build -o build/bin/ci ./tools/ci/ci
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -183,14 +185,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if git fetch origin previews:previews; then git worktree add pv previews; else git worktree add --orphan -b previews pv; fi
-          python -m tools.ci.previews store artifacts pv "$PREFIX"
+          build/bin/ci previews store artifacts pv "$PREFIX"
           cd pv && git add -A
           git diff --cached --quiet || git commit -qm "Screenshots for #${{ github.event.pull_request.number }}"
           for i in 1 2 3 4 5; do git push origin HEAD:previews && break; sleep $((i * 3)); git pull --rebase -q origin previews; done
           echo "REF=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - name: Post or update the screenshot comment
         run: |
-          python -m tools.ci.previews comment pv "$PREFIX" "$GITHUB_REPOSITORY" "$REF" \
+          build/bin/ci previews comment pv "$PREFIX" "$GITHUB_REPOSITORY" "$REF" \
             "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" > comment.md
           N=${{ github.event.pull_request.number }}
           ID=$(gh api "repos/$GITHUB_REPOSITORY/issues/$N/comments" --paginate \
@@ -198,4 +200,4 @@ jobs:
           if [ -n "$ID" ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$ID" -F body=@comment.md >/dev/null
           else gh api "repos/$GITHUB_REPOSITORY/issues/$N/comments" -F body=@comment.md >/dev/null; fi
       - name: Visual gate
-        run: python -m tools.ci.previews gate pv "$PREFIX" "${{ needs.plan.outputs.direct }}"
+        run: build/bin/ci previews gate pv "$PREFIX" "${{ needs.plan.outputs.direct }}"

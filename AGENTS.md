@@ -84,11 +84,11 @@ tools/render/render/        `make views` and the frame server videos use (client
 tools/bsp/bspinfo/          `bspinfo lightbudget MAP.bsp`: light samples per texture
 tools/assets/library.py     texture helpers, base textures, WAD writer
 tools/assets/skyfire.py     skybox faces (TGA) + fire sprite
-tools/package.py            builds the valve/ layout, .res file and zip
-tools/ci/previews.py        CI only: stores screenshots, writes the before/after PR comment, visual gate
-tools/ci/quality.py         CI only: satisfaction + holdout measurement and the no-regression ratchet
+tools/ci/ci/                `ci`, the CI helpers (Go): package (valve/ layout, .res, zip), quality (satisfaction +
+                            holdout, no-regression ratchet), holdout, previews (screenshots, PR comment, visual
+                            gate), readme (generated README sections)
 tools/checks/satisfy/       satisfaction scorer (Go): 0-100 playability score from sampled movement; also runs holdout
-tools/checks/holdout.py     human-written encrypted scenarios, run only in CI (evaluated by satisfy)
+holdout/scenarios.enc       human-written encrypted scenarios, run only in CI (`ci holdout`, evaluated by satisfy)
 tools/pipeline/             gates, ledger, `next` scheduler, publisher (see docs/pipeline.md)
 docs/lessons/               the knowledge base: one lesson per file; read the ones tagged for your task
 tools/mapkit.py             zone-based map assembly (conflict-free multi-agent maps)
