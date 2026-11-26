@@ -1,6 +1,7 @@
 # Half-Life 1 map pipeline.  Every map lives in maps/<name>/ and builds into build/<name>/.
-#   make build MAP=prairieloop     generate + compile (Go: tools/bsp/bspc) + package -> build/prairieloop/prairieloop.zip
-#   make golden                    compiler + scorer output (template map, prairieloop) must match the committed golden values
+#   make build MAP=prairieloop     generate + compile (SDHLT, quick lighting) + package -> build/prairieloop/prairieloop.zip
+#   make build MAP=x LIGHT=full    the same with full lighting (what releases ship)
+#   make golden                    SDHLT + scorer output (template map, prairieloop) must match the committed golden values
 #   make golden-update             re-record the golden values after an intended output change (commit them)
 #   make lint                      golangci-lint: gofmt, go vet, staticcheck, errcheck, unused (tools/.golangci.yml)
 #   make test  MAP=prairieloop     structure/limits, placements, wiring, walk routes
@@ -18,7 +19,7 @@ MAPS    := $(filter-out _template,$(notdir $(wildcard maps/*)))
 BD       = build/$(MAP)
 TIMEOUT ?= 1800
 
-.PHONY: bspc lint golden golden-out golden-update build test views video all list check-map readme ledger pipeline-test quality holdout-encrypt
+.PHONY: bspc sdhlt lint golden golden-out golden-update build test views video all list check-map readme ledger pipeline-test quality holdout-encrypt
 
 check-map:
 	@test -n "$(MAP)" || (echo "usage: make <target> MAP=<one of: $(MAPS)>"; exit 2)
@@ -27,12 +28,39 @@ check-map:
 list:
 	@echo $(MAPS)
 
-BSPC     = build/bin/bspc
+# SDHLT (https://github.com/seedee/SDHLT): the GoldSrc compiler suite, built from the commit in tools/bsp/sdhlt.rev.
+# It is GPLv2 + Valve's SDK EULA, so it is fetched and built here, never committed. Needs git, cmake and a C++ compiler.
+SDHLT_REV := $(shell cat tools/bsp/sdhlt.rev)
+SDHLT     = $(CURDIR)/build/sdhlt/$(SDHLT_REV)/tools
+LIGHT    ?= quick
+# VIS is always -fast: full VIS on an open map like prairieloop takes most of an hour for little gain.
+VISFLAGS  = -fast
+ifeq ($(LIGHT),full)
+RADFLAGS  =
+else
+RADFLAGS  = -fast -bounce 2
+endif
+
+$(SDHLT)/sdHLRAD: tools/bsp/sdhlt.rev
+	rm -rf build/sdhlt/$(SDHLT_REV) && mkdir -p build/sdhlt
+	git clone -q https://github.com/seedee/SDHLT build/sdhlt/$(SDHLT_REV)
+	cd build/sdhlt/$(SDHLT_REV) && git -c advice.detachedHead=false checkout -q $(SDHLT_REV) \
+	  && cmake -S . -B b -DCMAKE_BUILD_TYPE=Release > /dev/null && cmake --build b -j > /dev/null
+	@test -x $(SDHLT)/sdHLRAD && touch $(SDHLT)/sdHLRAD
+
+sdhlt: $(SDHLT)/sdHLRAD
+
+# compile MAP_DIR NAME: the four SDHLT steps on NAME.map (+ NAME.wad) in MAP_DIR, writing NAME.bsp there.
+# -nowadtextures embeds every texture in the .bsp, so the map needs no separate .wad.
+define compile
+	cd $(1) && timeout $(TIMEOUT) $(SDHLT)/sdHLCSG -nowadtextures $(2) > $(2).csg.log \
+	  && timeout $(TIMEOUT) $(SDHLT)/sdHLBSP $(2) > $(2).bsp.log \
+	  && timeout $(TIMEOUT) $(SDHLT)/sdHLVIS $(VISFLAGS) $(2) > $(2).vis.log \
+	  && timeout $(TIMEOUT) $(SDHLT)/sdHLRAD $(RADFLAGS) $(2) > $(2).rad.log \
+	  || (tail -40 $(2).log; exit 1)
+endef
 
 SATISFY  = build/bin/satisfy
-
-$(BSPC): $(wildcard tools/bsp/bspc/*.go) go.mod
-	go build -o $(BSPC) ./tools/bsp/bspc
 
 $(SATISFY): $(wildcard tools/checks/satisfy/*.go tools/bsp/bspfile/*.go tools/checks/walker/*.go) go.mod
 	go build -o $(SATISFY) ./tools/checks/satisfy
@@ -51,11 +79,12 @@ $(RENDER): $(wildcard tools/render/render/*.go tools/render/renderer/*.go tools/
 $(BSPINFO): $(wildcard tools/bsp/bspinfo/*.go tools/bsp/bspfile/*.go) go.mod
 	go build -o $(BSPINFO) ./tools/bsp/bspinfo
 
-bspc: $(BSPC) $(SATISFY) $(MAPCHECK) $(RENDER) $(BSPINFO)
+bspc: $(SATISFY) $(MAPCHECK) $(RENDER) $(BSPINFO)
 
-build: check-map $(BSPC)
+build: check-map $(SDHLT)/sdHLRAD
 	timeout $(TIMEOUT) $(PY) maps/$(MAP)/build.py
-	timeout $(TIMEOUT) $(BSPC) $(BD)/$(MAP).map $(BD)/$(MAP).wad $(BD)/$(MAP).bsp
+	@echo "compiling $(MAP) with SDHLT ($(LIGHT) lighting)"
+	$(call compile,$(BD),$(MAP))
 	$(PY) -m tools.package $(MAP)
 
 test: check-map $(MAPCHECK)
@@ -103,20 +132,22 @@ holdout-encrypt:
 readme:
 	$(PY) -m tools.readme
 
-# Go is the only compiler and scorer, so their output is pinned to committed golden values: the compiled BSP's
+# SDHLT's (quick-lighting) output and the Go scorer's are pinned to committed golden values: the compiled BSP's
 # SHA-256 and the satisfaction result (seed 4242) for the template map and prairieloop (a real map whose metrics
 # aren't all 1.0). Any change to that output has to be deliberate (`make golden-update`) and shows in the PR diff.
 GOLDEN_MAPS = _template prairieloop
-GOLDEN_BSP  = tools/bsp/bspc/golden.sha256
+GOLDEN_BSP  = tools/bsp/golden.sha256
 GOLDEN_SAT  = tools/checks/satisfy/golden.json
 GO_OUT      = build/golden
 
-golden-out: $(BSPC) $(SATISFY)
+golden-out: $(SDHLT)/sdHLRAD $(SATISFY)
 	@mkdir -p $(GO_OUT); rm -f $(GO_OUT)/*
 	@set -e; for m in $(GOLDEN_MAPS); do \
 	  echo "golden: $$m"; \
 	  timeout 900 $(PY) maps/$$m/build.py > /dev/null; \
-	  timeout 900 $(BSPC) build/$$m/$$m.map build/$$m/$$m.wad $(GO_OUT)/$$m.bsp > /dev/null; \
+	  (cd build/$$m && timeout 900 $(SDHLT)/sdHLCSG -nowadtextures $$m && timeout 900 $(SDHLT)/sdHLBSP $$m \
+	    && timeout 900 $(SDHLT)/sdHLVIS -fast $$m && timeout 900 $(SDHLT)/sdHLRAD -fast -bounce 2 $$m) > /dev/null; \
+	  cp build/$$m/$$m.bsp $(GO_OUT)/$$m.bsp; \
 	  (cd $(GO_OUT) && sha256sum $$m.bsp) >> $(GO_OUT)/golden.sha256; \
 	  SATISFACTION_SEED=4242 timeout 900 $(SATISFY) $(GO_OUT)/$$m.bsp --json $(GO_OUT)/$$m.sat.json > /dev/null; \
 	done

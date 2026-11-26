@@ -75,7 +75,7 @@ The repo is laid out so that two agent sessions almost never edit the same file:
 ## Layout
 
 ```
-tools/bsp/bspc/             the BSP compiler (Go); its output is pinned by `make golden`
+tools/bsp/sdhlt.rev         the SDHLT commit `make build` compiles maps with (hlcsg/hlbsp/hlvis/hlrad); output pinned by `make golden`
 tools/bsp/bspfile/           Go BSP reader shared by the checks and the scorer (limits, consistency, hulls)
 tools/checks/mapcheck/      `make test`: structure (engine limits), placements, wiring, walk routes (Go)
 tools/checks/walker/        the route walker (Go): 18-unit steps, free drops; walk.py hands it each map's ROUTES
@@ -112,7 +112,7 @@ make views MAP=<name>                  # preview PNGs in build/<name>/previews/
 make video MAP=<name>                  # walkthrough mp4 + Discord-size copy (if the map has video/walkthrough.py)
 make quality MAP=<name>                # satisfaction score (+ holdout pass rate in CI)
 make lint                              # golangci-lint (gofmt, go vet, staticcheck, errcheck, unused, ...)
-make golden                            # compiler + scorer output must match the committed golden values
+make golden                            # SDHLT + scorer output must match the committed golden values
 make golden-update                     # only when you changed that output on purpose: commit it, say why in the PR
 make all                               # build + test every map
 ```
@@ -131,10 +131,14 @@ Each of these cost real time once; the lesson files have the details.
 - **Rebase on the real latest `main` before opening a PR.** In a git worktree, `git fetch origin main` may only
   update `FETCH_HEAD`: rebase onto `FETCH_HEAD`, and force-push with an explicit lease
   (`--force-with-lease=<branch>:<sha you expect>`).
-- **A refactor leaves `make golden` unchanged; an output change is deliberate.** The Go compiler and scorer have
-  no second implementation to compare against, so their output is pinned. Floating-point operation order
-  matters (a reordered sum or a fused multiply-add changes last bits and can flip a split). If the output
-  changes on purpose, run `make golden-update`, commit it, and say in the PR why and how you checked the maps.
+- **A refactor leaves `make golden` unchanged; an output change is deliberate.** Maps compile with SDHLT at a
+  pinned commit (tools/bsp/sdhlt.rev) and the scorer is ours, so both outputs are pinned. Floating-point
+  operation order matters (a reordered sum or a fused multiply-add changes last bits). If the output changes on
+  purpose (a new SDHLT commit, a scorer change), run `make golden-update`, commit it, and say in the PR why and
+  how you checked the maps.
+- **Pull requests build with quick lighting; releases with full lighting.** `make build` runs hlrad with
+  `-fast -bounce 2` (seconds); `LIGHT=full` is the slow, nicer version that releases ship. Screenshots in a PR
+  compare quick against quick. VIS is always `-fast`: full VIS on prairieloop takes most of an hour.
   When porting numeric code, measure each primitive against the original first (docs/lessons).
 - **Prefer comparing to existing artifacts over re-running slow reference code.** A BSP built earlier from the
   same inputs is as good a reference as a fresh 9-minute Python compile.
