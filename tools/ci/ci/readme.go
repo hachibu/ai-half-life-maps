@@ -6,7 +6,9 @@ package main
 // table linking every map (from maps/*/map.toml: title, description, `hero` view, `featured = true`).
 // Map READMEs: the block between <!-- screenshots:start --> and <!-- screenshots:end --> (appended if missing)
 // gets every view from tests/views.py. Images are the screenshots CI renders for main on every release (the
-// `previews` branch, main/<map>/<view>.jpg), so they stay current without committing images.
+// `previews` branch, main/<map>/<view>.jpg), so they stay current without committing images. Their URLs carry a
+// version (`?v=<previews commit>`) so browsers fetch new images after `make readme V=<commit>`; without V the
+// version already in README.md is kept.
 
 import (
 	"bufio"
@@ -22,6 +24,8 @@ import (
 )
 
 var errNoMarkers = errors.New("README has no generated-block markers")
+
+var reImgVersion = regexp.MustCompile(`/previews/main/[^"?]+\.jpg\?v=([\w.-]+)`)
 
 type mapMeta struct {
 	dir, title, description, hero string
@@ -135,10 +139,17 @@ func replaceBlock(text, tag, body string, appendIfMissing bool) (string, error) 
 	return "", fmt.Errorf("%w: %s ... %s", errNoMarkers, start, end)
 }
 
-func mainBlock(repo string, ms []mapMeta) string {
-	img := func(m mapMeta) string {
-		return fmt.Sprintf("https://raw.githubusercontent.com/%s/previews/main/%s/%s.jpg", repo, m.dir, m.hero)
+// imgURL is a screenshot on the previews branch, with the cache-busting version when there is one.
+func imgURL(repo, dir, view, version string) string {
+	u := fmt.Sprintf("https://raw.githubusercontent.com/%s/previews/main/%s/%s.jpg", repo, dir, view)
+	if version != "" {
+		u += "?v=" + version
 	}
+	return u
+}
+
+func mainBlock(repo, version string, ms []mapMeta) string {
+	img := func(m mapMeta) string { return imgURL(repo, m.dir, m.hero, version) }
 	var lines []string
 	feat := -1
 	for i, m := range ms {
@@ -162,14 +173,14 @@ func mainBlock(repo string, ms []mapMeta) string {
 	return strings.Join(lines, "\n")
 }
 
-func mapBlock(repo string, m mapMeta) string {
+func mapBlock(repo, version string, m mapMeta) string {
 	lines := []string{"## Screenshots", "",
 		"Rendered by CI from `main` after every release (preview renderer: see-through fences show as solid blue).", "",
 		"| | |", "|---|---|"}
 	for i := 0; i < len(m.views); i += 2 {
 		var cells []string
 		for _, v := range m.views[i:min(i+2, len(m.views))] {
-			u := fmt.Sprintf("https://raw.githubusercontent.com/%s/previews/main/%s/%s.jpg", repo, m.dir, v)
+			u := imgURL(repo, m.dir, v, version)
 			cells = append(cells, fmt.Sprintf(`<img src="%s" alt="%s" width="400"><br>`+"`%s`", u, v, v))
 		}
 		for len(cells) < 2 {
@@ -185,18 +196,25 @@ type readmeFile struct {
 	update func(string) (string, error)
 }
 
-func cmdReadme(root string, check bool) (int, error) {
+func cmdReadme(root string, check bool, version string) (int, error) {
 	ms, err := loadMaps(root)
 	if err != nil {
 		return 1, err
 	}
 	repo := ghRepo(root)
+	if version == "" { // keep the version the README already uses
+		if b, err := os.ReadFile(filepath.Join(root, "README.md")); err == nil {
+			if m := reImgVersion.FindSubmatch(b); m != nil {
+				version = string(m[1])
+			}
+		}
+	}
 	files := []readmeFile{{filepath.Join(root, "README.md"), func(t string) (string, error) {
-		return replaceBlock(t, "maps", mainBlock(repo, ms), false)
+		return replaceBlock(t, "maps", mainBlock(repo, version, ms), false)
 	}}}
 	for _, m := range ms {
 		files = append(files, readmeFile{filepath.Join(root, "maps", m.dir, "README.md"), func(t string) (string, error) {
-			return replaceBlock(t, "screenshots", mapBlock(repo, m), true)
+			return replaceBlock(t, "screenshots", mapBlock(repo, version, m), true)
 		}})
 	}
 	var stale []string

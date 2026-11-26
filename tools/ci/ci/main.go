@@ -8,7 +8,7 @@
 //	ci previews store ARTIFACTS WORKTREE PREFIX     PNG previews -> WORKTREE/PREFIX/<map>/*.jpg
 //	ci previews comment WORKTREE PREFIX REPO REF RUN_URL    the PR's before/after markdown, to stdout
 //	ci previews gate WORKTREE PREFIX "map1 map2"    visual gate: exit 1 with reasons
-//	ci readme [--check]                             regenerate (or check) the READMEs' screenshot sections
+//	ci readme [--check] [--version V]               regenerate (or check) the READMEs' screenshot sections
 package main
 
 import (
@@ -54,7 +54,7 @@ func run(args []string) (int, error) {
 	case args[0] == "previews" && len(args) >= 2:
 		return cmdPreviews(args[1:])
 	case args[0] == "readme":
-		return cmdReadme(root, len(args) > 1 && args[1] == "--check")
+		return readmeArgs(root, args[1:])
 	}
 	return 2, errUsage
 }
@@ -84,4 +84,21 @@ func pyFloat(f float64) string {
 		s += ".0"
 	}
 	return s
+}
+
+// readmeArgs parses `ci readme [--check] [--version V]`.
+func readmeArgs(root string, args []string) (int, error) {
+	check, version := false, ""
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "--check":
+			check = true
+		case args[i] == "--version" && i+1 < len(args):
+			version = args[i+1]
+			i++
+		default:
+			return 2, errUsage
+		}
+	}
+	return cmdReadme(root, check, version)
 }

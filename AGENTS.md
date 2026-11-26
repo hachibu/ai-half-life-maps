@@ -17,6 +17,8 @@ or gates to satisfy, only the checks in CI.
 3. **Branch `claude/<topic>`, one change per PR.** Never push to `main`. Rebase on the latest `main` first.
 4. **Adding, renaming or removing a map or a view? Run `make readme`** (CI fails if you forget). It updates the
    main README gallery and the map's screenshot grid; set `hero` in map.toml to choose the gallery shot.
+   To make browsers show new README screenshots after a release, run `make readme V=<commit>` with the
+   `previews` commit that stored them (`git log -1 --format=%h origin/previews -- main`) and open a PR.
 5. **Fill every section of the PR template.** Run `make build test views MAP=<map>` before pushing and look at
    the images yourself. Add a named view aimed at every visible change: CI's visual gate fails a map change
    that no screenshot shows.
