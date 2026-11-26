@@ -210,8 +210,8 @@ for seg in range(8):
                 sp = crowd_spec(k * 3 + seg + i, h + 40)
                 CROWD.append(prism(cp, h, h + 40, sp, top="CROWDTOP", bottom="NULL"))
     if seg != 2:   # aisle steps up to the fascia-high first tier
-        for j in range(3):
-            W.append(prism(rq(A0 - 48 + 16 * j, A0 - 32 + 16 * j, seg, 0.46, 0.54), 0, 16 * (j + 1), "STANDS", top="SEATS"))
+        for j in range(6):                                       # 8-unit risers
+            W.append(prism(rq(A0 - 48 + 8 * j, A0 - 40 + 8 * j, seg, 0.46, 0.54), 0, 8 * (j + 1), "STANDS", top="SEATS"))
 
 # concourse (seg 2 keeps it solid; tunnel/room end before it)
 for seg in range(8):
@@ -220,22 +220,22 @@ for seg in range(8):
 
 # ------------------------------------------------------------------ upper deck + balcony + stairs
 B0, B1 = 1980, 2076                 # balcony walkway (overhangs concourse 1980..2040)
-BAL_Z = CONC_Z + 16 * 15            # 608: 15 steps of 16 up from the concourse
+BAL_Z = CONC_Z + 8 * 30             # 608: 30 steps of 8 up from the concourse
 UND = 560                           # balcony underside
 UA0, UNT = B1, 12
 uh = lambda k: BAL_Z + 16 * (k + 1)
 STAIR_SEGS = (1, 3, 5, 7)
 ST0, ST1 = 0.10, 0.32               # stair run along the segment
-HOLE_T0 = ST0 + (ST1 - ST0) * 3 / 15
+HOLE_T0 = ST0 + (ST1 - ST0) * 6 / 30
 for seg in range(8):
     if seg == 6: continue
     # balcony slab (overhang part) with stair hole
     if seg in STAIR_SEGS:
         W.append(prism(rq(B0, CONC1, seg, 0, HOLE_T0), UND, BAL_Z, "STADWALL", top="CONCRETE"))
         W.append(prism(rq(B0, CONC1, seg, ST1 + 0.01, 1), UND, BAL_Z, "STADWALL", top="CONCRETE"))
-        for j in range(15):
-            t0 = ST0 + (ST1 - ST0) * j / 15; t1 = ST0 + (ST1 - ST0) * (j + 1) / 15
-            W.append(prism(rq(1976, CONC1, seg, t0, t1), CONC_Z, CONC_Z + 16 * (j + 1), "STADWALL", top="STEP"))
+        for j in range(30):
+            t0 = ST0 + (ST1 - ST0) * j / 30; t1 = ST0 + (ST1 - ST0) * (j + 1) / 30
+            W.append(prism(rq(1976, CONC1, seg, t0, t1), CONC_Z, CONC_Z + 8 * (j + 1), "STADWALL", top="STEP"))
         pars = [(0, ST0 - 0.01), (ST1 + 0.02, 0.46), (0.54, 1)]
     else:
         W.append(prism(rq(B0, CONC1, seg), UND, BAL_Z, "STADWALL", top="CONCRETE"))
