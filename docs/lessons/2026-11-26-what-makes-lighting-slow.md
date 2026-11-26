@@ -26,6 +26,10 @@ lighting in game, yet hlrad still lights them (`zhlt_striprad` only discards the
 - Give faces nobody can see the `NULL` texture (bottoms resting on something, backs against walls), above all
   on brush entities.
 - Only real light sources go in EMISSIVE: lamps, screens, light banks. Not beams, trims or decorations.
-- Measure with `build/bin/bspinfo lightbudget MAP.bsp`; big decorative surfaces far from players can use a
+- Measure with `build/bin/mapcheck lightbudget MAP.bsp`; big decorative surfaces far from players can use a
   half-resolution texture at double scale.
 - Additive sheets (prairieloop's snow) cost lighting time for nothing visible; prefer fewer, smaller ones.
+- Most of hlrad's time actually scales with radiosity *patches* (surface area / patch size), not light samples:
+  the per-phase times in `build/<map>/<map>.rad.log` show it (BuildVisLeafs, MakeScales, bounces). An
+  `info_chopscale` entity (texture -> patch-size multiplier) on big plain surfaces cuts that without touching
+  direct light. Leave the walls of rooms lit mostly by bounces alone: bigger patches there make them darker.
