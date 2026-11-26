@@ -20,7 +20,7 @@ ROUTES = [
     ("street -> N1 house -> stairs down", 0, [(-300, 760), N(cxN, 0, -240)] + house_down(N, cxN)),
     ("N1 basement -> ring tunnel -> S1 basement", -176, basement_out(N, cxN) + [(cxN, 576), (-1024, 576), (-1024, -576), (cxS, -576),
                                                                               S_(cxS, 0, -260), S_(cxS, 0, -150), S_(cxS, -100, -100), S_(cxS, -100, 168)]),
-    ("S1 basement -> stairs up -> street", -176, [S_(cxS, -60, 168), S_(cxS, 222, 168), S_(cxS, 120, 60), S_(cxS, -20, 40),
+    ("S1 basement -> stairs up -> street", -176, [S_(cxS, -80, 168), S_(cxS, 222, 168), S_(cxS, 120, 60), S_(cxS, -20, 40),
                                                   S_(cxS, -20, -170), S_(cxS, 0, -240), (-300, -760)]),
     ("corner house N0 -> ring tunnel", -176, basement_out(N, -1152) + [(-1152, 576), (-1024, 576)]),
     ("corner house S3 -> ring tunnel", -176, basement_out(S_, 1152) + [(1152, -576), (1024, -576)]),

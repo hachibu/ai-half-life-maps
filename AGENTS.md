@@ -121,7 +121,7 @@ CI's checks name what's wrong, and they've been right every time so far.
 
 - Put decoration players never touch in a func_illusionary (battleaxecombatleague; [details](docs/lessons/2026-11-21-decoration-is-noclip.md))
 - Place items relative to the geometry they sit on, and re-run `make test` after moving geometry (battleaxecombatleague; [details](docs/lessons/2026-11-22-items-move-with-geometry.md))
-- Keep risers at 16 or less with 72+ units of headroom, and add a route for every new walkable area (prairieloop; [details](docs/lessons/2026-11-22-routes-step-height-and-headroom.md))
+- Build stairs with 8-unit risers (16 at most) and 72+ units of headroom; add a route for every new walkable area (prairieloop, casaroble; [details](docs/lessons/2026-11-22-routes-step-height-and-headroom.md))
 - Keep full VIS fast: build walls, floors and roofs as single big brushes, and let split_detail make the rest func_detail (battleaxecombatleague, prairieloop; [details](docs/lessons/2026-11-26-full-vis-needs-func-detail.md))
 - Keep overhead decoration 72+ units above every walkable floor (battleaxecombatleague; [details](docs/lessons/2026-11-26-overhead-decoration-headroom.md))
 
