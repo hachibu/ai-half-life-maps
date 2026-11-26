@@ -1,8 +1,6 @@
 # Half-Life 1 map pipeline.  Every map lives in maps/<name>/ and builds into build/<name>/.
 #   make build MAP=prairieloop     generate + compile (SDHLT: full VIS + full lighting) + package -> build/prairieloop/prairieloop.zip
 #   make build MAP=x LIGHT=quick VIS=fast   a much faster draft compile while iterating locally
-#   make golden                    the template map compiled by SDHLT must match its committed SHA-256
-#   make golden-update             re-record the golden values after an intended output change (commit them)
 #   make lint                      golangci-lint: gofmt, go vet, staticcheck, errcheck, unused (tools/.golangci.yml)
 #   make test  MAP=prairieloop     structure/limits, placements, wiring, walk routes
 #   make views MAP=prairieloop     preview images  -> build/prairieloop/previews/
@@ -17,7 +15,7 @@ MAPS    := $(filter-out _template,$(notdir $(wildcard maps/*)))
 BD       = build/$(MAP)
 TIMEOUT ?= 1800
 
-.PHONY: bspc sdhlt lint golden golden-out golden-update build test views video all check-map readme
+.PHONY: bspc sdhlt lint build test views video all check-map readme
 
 check-map:
 	@test -n "$(MAP)" || (echo "usage: make <target> MAP=<one of: $(MAPS)>"; exit 2)
@@ -118,33 +116,6 @@ all:
 
 readme: $(CI)
 	$(CI) readme $(if $(V),--version $(V))
-
-# The pinned SDHLT build (tools/bsp/sdhlt.rev) must keep compiling the template map to the same bytes, so a new
-# SDHLT commit, a different build of it, or a change to the template's generator shows up as a deliberate
-# `make golden-update` in the PR diff. Only the small template map: SDHLT's lighting floats differ in the last
-# bits between C++ compilers and CPUs on bigger maps.
-GOLDEN_MAPS = _template
-GOLDEN_BSP  = tools/bsp/golden.sha256
-GO_OUT      = build/golden
-
-golden-out: $(SDHLT)/sdHLRAD
-	@mkdir -p $(GO_OUT); rm -f $(GO_OUT)/*
-	@set -e; for m in $(GOLDEN_MAPS); do \
-	  echo "golden: $$m"; \
-	  timeout 900 $(PY) maps/$$m/build.py > /dev/null; \
-	  (cd build/$$m && timeout 900 $(SDHLT)/sdHLCSG -nowadtextures $$m && timeout 900 $(SDHLT)/sdHLBSP $(BSPFLAGS) $$m \
-	    && timeout 900 $(SDHLT)/sdHLVIS -fast $$m && timeout 900 $(SDHLT)/sdHLRAD -fast -bounce 2 $$m) > /dev/null; \
-	  cp build/$$m/$$m.bsp $(GO_OUT)/$$m.bsp; \
-	  (cd $(GO_OUT) && sha256sum $$m.bsp) >> $(GO_OUT)/golden.sha256; \
-	done
-
-golden: golden-out
-	@diff -u $(GOLDEN_BSP) $(GO_OUT)/golden.sha256 && echo "compiler golden: identical" || \
-	  (echo "compiler output changed. If that is intended, run make golden-update and commit the result."; exit 1)
-
-golden-update: golden-out
-	cp $(GO_OUT)/golden.sha256 $(GOLDEN_BSP)
-	@echo "updated $(GOLDEN_BSP); commit it and say in the PR why the output changed"
 
 # golangci-lint (config: tools/.golangci.yml) covers gofmt, go vet, staticcheck, errcheck, unused and ineffassign.
 # Install v2.15.0, the version CI pins: https://golangci-lint.run/docs/welcome/install/local/

@@ -39,7 +39,6 @@ make test  MAP=prairieloop               # limits, placements, wiring, walk rout
 make views MAP=prairieloop               # preview images
 make video MAP=prairieloop               # walkthrough video (maps that have one)
 make lint                                # golangci-lint on the Go code
-make golden                              # the template map compiled by SDHLT must match its committed SHA-256
 make readme V=<previews commit>          # refresh the README screenshot sections (and their image version)
 make all                                 # every map
 ```
