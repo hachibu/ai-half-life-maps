@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _helpers import box
-from tools.assets import library as L
+from tools.mapkit import textures as L
 
 BOUNDS = (-528, -528, -16, 528, 528, 272)          # this zone's space; other zones must not overlap it
 TEXTURES = {"ROOM_FLOOR": L.T["WOODFLOOR"], "ROOM_WALL": L.T["WALLPAPER"],

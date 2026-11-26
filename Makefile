@@ -15,18 +15,18 @@ MAPS    := $(filter-out _template,$(notdir $(wildcard maps/*)))
 BD       = build/$(MAP)
 TIMEOUT ?= 1800
 
-.PHONY: bspc sdhlt lint build test views video all check-map readme
+.PHONY: tools sdhlt lint build test views video all check-map readme
 
 check-map:
 	@test -n "$(MAP)" || (echo "usage: make <target> MAP=<one of: $(MAPS)>"; exit 2)
 	@test -d maps/$(MAP) || (echo "no such map: maps/$(MAP)"; exit 2)
 
-# SDHLT (https://github.com/seedee/SDHLT): the GoldSrc compiler suite, built from the commit in tools/bsp/sdhlt.rev.
+# SDHLT (https://github.com/seedee/SDHLT): the GoldSrc compiler suite, built from the commit in tools/sdhlt.rev.
 # It is GPLv2 + Valve's SDK EULA, so it is fetched and built here, never committed. Needs git, cmake and a C++ compiler.
-SDHLT_REV := $(shell cat tools/bsp/sdhlt.rev)
+SDHLT_REV := $(shell cat tools/sdhlt.rev)
 SDHLT     = $(CURDIR)/build/sdhlt/$(SDHLT_REV)/tools
 # PRs and releases build what players get: full VIS and full lighting. LIGHT=quick VIS=fast is a draft mode for
-# local iteration. Full VIS stays fast because the maps put small brushes in func_detail (tools/mapkit.py).
+# local iteration. Full VIS stays fast because the maps put small brushes in func_detail (tools/mapkit).
 LIGHT    ?= full
 VIS      ?= full
 BSPFLAGS  = -maxnodesize 2048
@@ -41,7 +41,7 @@ else
 RADFLAGS  = -fast -bounce 2
 endif
 
-$(SDHLT)/sdHLRAD: tools/bsp/sdhlt.rev
+$(SDHLT)/sdHLRAD: tools/sdhlt.rev
 	rm -rf build/sdhlt/$(SDHLT_REV) && mkdir -p build/sdhlt
 	git clone -q https://github.com/seedee/SDHLT build/sdhlt/$(SDHLT_REV)
 	cd build/sdhlt/$(SDHLT_REV) && git -c advice.detachedHead=false checkout -q $(SDHLT_REV) \
@@ -61,25 +61,18 @@ define compile
 	@cd $(1) && for t in csg bsp vis rad; do printf '  %-4s %s\n' $$t "$$(grep -h 'seconds elapsed' $(2).$$t.log | tail -1)"; done
 endef
 
-MAPCHECK = build/bin/mapcheck
+# The Go commands (tools/cmd/*) -> build/bin/, built together whenever any Go source changes.
+BIN      = build/bin
+MAPCHECK = $(BIN)/mapcheck
+RENDER   = $(BIN)/render
+CI       = $(BIN)/ci
+GO_SRC  := $(shell find tools -name '*.go') go.mod
 
-$(MAPCHECK): $(wildcard tools/checks/mapcheck/*.go tools/bsp/bspfile/*.go tools/checks/walker/*.go) go.mod
-	go build -o $(MAPCHECK) ./tools/checks/mapcheck
+$(MAPCHECK) $(RENDER) $(CI) &: $(GO_SRC)
+	@mkdir -p $(BIN)
+	go build -o $(BIN)/ ./tools/cmd/...
 
-RENDER   = build/bin/render
-BSPINFO  = build/bin/bspinfo
-CI       = build/bin/ci
-
-$(RENDER): $(wildcard tools/render/render/*.go tools/render/renderer/*.go tools/bsp/bspfile/*.go) go.mod
-	go build -o $(RENDER) ./tools/render/render
-
-$(BSPINFO): $(wildcard tools/bsp/bspinfo/*.go tools/bsp/bspfile/*.go) go.mod
-	go build -o $(BSPINFO) ./tools/bsp/bspinfo
-
-$(CI): $(wildcard tools/ci/ci/*.go) go.mod
-	go build -o $(CI) ./tools/ci/ci
-
-bspc: $(MAPCHECK) $(RENDER) $(BSPINFO) $(CI)
+tools: $(MAPCHECK) $(RENDER) $(CI)
 
 build: check-map $(SDHLT)/sdHLRAD $(CI)
 	timeout $(TIMEOUT) $(PY) maps/$(MAP)/build.py
@@ -96,7 +89,7 @@ test: check-map $(MAPCHECK)
 	  timeout 900 $(MAPCHECK) routes $(BD)/$(MAP).bsp $(BD)/routes.json; fi
 
 views: check-map $(RENDER)
-	$(PY) -m tools.render.views $(MAP) > $(BD)/views.json
+	$(PY) -m tools.mapkit.views $(MAP) > $(BD)/views.json
 	timeout 900 $(RENDER) views $(BD)/$(MAP).bsp $(BD)/valve $(BD)/views.json $(BD)/previews
 
 video: check-map

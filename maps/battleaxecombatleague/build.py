@@ -6,14 +6,14 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))     # repo root, for tools.*
 sys.path.insert(0, str(Path(__file__).resolve().parent))         # this map's own modules
-from tools.paths import build_dir
+from tools.mapkit.paths import build_dir
 from tools.mapkit import chunks, detail_entity, split_detail, texlights
 import math, os, sys, json
 import numpy as np
 from scipy.spatial import ConvexHull
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import assets as fn_textures
-from tools.assets import skyfire
+from tools.mapkit import sky
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = str(build_dir("battleaxecombatleague"))
@@ -489,5 +489,5 @@ with open(os.path.join(OUT, "battleaxecombatleague.map"), "w", newline="\r\n") a
             + texlights(os.path.join(OUT, "battleaxecombatleague.wad"), fn_textures.EMISSIVE))
 VALVE = os.path.join(OUT, "valve")
 os.makedirs(os.path.join(VALVE, "gfx", "env"), exist_ok=True); os.makedirs(os.path.join(VALVE, "sprites"), exist_ok=True)
-skyfire.write_sprite(os.path.join(VALVE, "sprites", "battleaxecombatleague_fire.spr"))
+sky.write_sprite(os.path.join(VALVE, "sprites", "battleaxecombatleague_fire.spr"))
 print("world brushes", len(STRUCT), "detail", len(DETAIL), "brush ents", len(BENTS), "items", len(ITEMS), "spawns", len(SPAWNS), "point ents", len(ENTS))

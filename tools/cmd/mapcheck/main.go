@@ -1,10 +1,10 @@
-// mapcheck: the map checks `make test` runs (Go port of the Python structure/placements/wiring/walk checks,
-// same output).
+// mapcheck: the map checks `make test` runs, plus a light-budget report.
 //
-//	mapcheck structure  MAP.bsp            engine limits + file consistency
-//	mapcheck placements MAP.bsp            spawns stand clear and grounded; pickups out of solid
-//	mapcheck wiring     MAP.bsp            every target / multi_manager key names an existing targetname
-//	mapcheck routes     MAP.bsp ROUTES.json   walk routes ([[name, floor_z, [[x, y], ...]], ...])
+//	mapcheck structure   MAP.bsp            engine limits + file consistency
+//	mapcheck placements  MAP.bsp            spawns stand clear and grounded; pickups out of solid
+//	mapcheck wiring      MAP.bsp            every target / multi_manager key names an existing targetname
+//	mapcheck routes      MAP.bsp ROUTES.json   walk routes ([[name, floor_z, [[x, y], ...]], ...])
+//	mapcheck lightbudget MAP.bsp [N]        light samples per texture, biggest first (top N, default 12)
 package main
 
 import (
@@ -16,13 +16,13 @@ import (
 	"strconv"
 	"strings"
 
-	"halflifemaps/tools/bsp/bspfile"
-	"halflifemaps/tools/checks/walker"
+	"halflifemaps/tools/bspfile"
+	"halflifemaps/tools/walker"
 )
 
 func main() {
 	if len(os.Args) < 3 {
-		fmt.Fprintln(os.Stderr, "usage: mapcheck structure|placements|wiring MAP.bsp | mapcheck routes MAP.bsp ROUTES.json")
+		fmt.Fprintln(os.Stderr, "usage: mapcheck structure|placements|wiring|lightbudget MAP.bsp | mapcheck routes MAP.bsp ROUTES.json")
 		os.Exit(2)
 	}
 	m, err := bspfile.Load(os.Args[2])
@@ -44,6 +44,17 @@ func main() {
 			os.Exit(2)
 		}
 		bad = routes(m, os.Args[3])
+	case "lightbudget":
+		top := 12
+		if len(os.Args) > 3 {
+			n, err := strconv.Atoi(os.Args[3])
+			if err != nil || n < 1 {
+				fmt.Fprintln(os.Stderr, "N must be a positive number")
+				os.Exit(2)
+			}
+			top = n
+		}
+		lightBudget(m, top)
 	default:
 		fmt.Fprintln(os.Stderr, "unknown check", os.Args[1])
 		os.Exit(2)
@@ -257,4 +268,34 @@ func routes(m *bspfile.BSP, path string) bool {
 	}
 	fmt.Printf("routes: %d  failed: %d\n", len(rs), bad)
 	return bad > 0
+}
+
+// lightBudget prints light samples per texture, biggest first (the top n), and the map's total against the limit.
+func lightBudget(m *bspfile.BSP, top int) {
+	count := map[string]int{}
+	for i, f := range m.Faces {
+		ex := m.FExt[i]
+		if ex == nil {
+			continue
+		}
+		name := m.Textures[m.TexInfo[f.TexInfo].Miptex].Name
+		count[name] += (ex.Size[0]/16 + 1) * (ex.Size[1]/16 + 1)
+	}
+	names := make([]string, 0, len(count))
+	for n := range count {
+		names = append(names, n)
+	}
+	sort.Slice(names, func(i, j int) bool {
+		if count[names[i]] != count[names[j]] {
+			return count[names[i]] > count[names[j]]
+		}
+		return names[i] < names[j]
+	})
+	for i, n := range names {
+		if i == top {
+			break
+		}
+		fmt.Printf("%-16s %8d\n", n, count[n])
+	}
+	fmt.Printf("%-16s %8d / %d\n", "total", m.Lux, bspfile.Limits[0].Max)
 }

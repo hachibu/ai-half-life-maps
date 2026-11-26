@@ -27,11 +27,11 @@ README (`maps/<name>/README.md`) describes it with screenshots.
 
 You need Python 3.11+ (the map scripts), Go 1.24+ (checks, previews, packaging), and git, cmake and a C++
 compiler: `make build` fetches and builds [SDHLT](https://github.com/seedee/SDHLT) once, at the commit pinned in
-`tools/bsp/sdhlt.rev`.
+`tools/sdhlt.rev`.
 
 ```
 pip install -r requirements.txt          # numpy, scipy, pillow for the map scripts (ffmpeg for videos)
-make bspc                                # build the Go tools into build/bin/ (make build does this for you)
+make tools                               # build the Go tools into build/bin/ (make build does this for you)
 make sdhlt                               # fetch + build the pinned SDHLT compiler (make build does this for you)
 make build MAP=prairieloop               # describe, compile (SDHLT: full VIS + full lighting), package -> build/prairieloop/prairieloop.zip
 make build MAP=prairieloop LIGHT=quick VIS=fast   # a quick draft compile while iterating
@@ -57,15 +57,14 @@ one map without conflicts.
 ## Layout
 
 ```
-tools/bsp/          the pinned SDHLT commit (sdhlt.rev), BSP reader and bspinfo (Go)
-tools/checks/      map checks and route walker (Go)
-tools/render/      preview and video renderer (Go)
-tools/ci/ci/       CI helpers: packaging, screenshots, README sections (Go)
-tools/mapkit.py    zone-based map assembly; tools/assets/: texture, sky and sprite generators (Python)
+tools/sdhlt.rev    the SDHLT commit maps are compiled with
+tools/mapkit/      what map scripts import: zone assembly, textures, sky, routes/views hand-off (Python)
+tools/cmd/         Go commands: mapcheck (map checks), render (screenshots), ci (CI helpers)
+tools/bspfile/, tools/walker/, tools/renderer/   Go libraries: read a .bsp, walk routes, render previews
 maps/              one folder per map (+ _template)
 go.mod             one Go module for the repo
 build/             generated output (not in git); build/bin/ holds the Go binaries
 ```
 
-Fonts in `tools/assets/fonts/` are redistributed under their own licenses (SIL OFL 1.1 for Poppins,
+Fonts in `tools/mapkit/fonts/` are redistributed under their own licenses (SIL OFL 1.1 for Poppins,
 the DejaVu license for DejaVu Sans Mono). Everything else is original to this repo.

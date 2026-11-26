@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))     # repo root, for tools.*
 sys.path.insert(0, str(Path(__file__).resolve().parent))         # this map's own modules
-from tools.paths import build_dir
+from tools.mapkit.paths import build_dir
 from tools.mapkit import chunks, detail_entity, split_detail, texlights
 import math, os, sys, json
 import numpy as np

@@ -47,9 +47,9 @@ linters:
     # Complexity ceiling. Each limit equals today's worst function, so no function may grow past it. Lower
     # a limit when you split the function that sets it (worst now in brackets), and never raise one.
     gocognit:
-      min-complexity: 130       # how hard a function is to follow (finalizeLighting 130, BSP.check 89, bspc main 67)
+      min-complexity: 130       # how hard a function is to follow (set when the old compiler lived here; lower to the worst function when convenient)
     cyclop:
-      max-complexity: 57        # branch paths (finalizeLighting 57, BSP.check 52, Parse 36)
+      max-complexity: 57        # branch paths (likewise)
     nestif:
       min-complexity: 9         # nested ifs; flags 9 and up (the limit sat at the old scorer's worst; lower it when convenient)
     funlen:

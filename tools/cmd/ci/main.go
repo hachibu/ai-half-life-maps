@@ -1,4 +1,4 @@
-// ci: the CI helpers, in one command (run from the repo root; `make bspc` builds build/bin/ci).
+// ci: the CI helpers, in one command (run from the repo root; `make tools` builds build/bin/ci).
 //
 //	ci package MAP                                  build/MAP/valve + .res + README -> build/MAP/MAP.zip
 //	ci previews store ARTIFACTS WORKTREE PREFIX     PNG previews -> WORKTREE/PREFIX/<map>/*.jpg
@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	errUsage      = errors.New("usage: see the comment at the top of tools/ci/ci/main.go")
+	errUsage      = errors.New("usage: see the comment at the top of tools/cmd/ci/main.go")
 	errNoRepoRoot = errors.New("not inside the repository (no go.mod above the current directory)")
 )
 

@@ -9,7 +9,7 @@ import os, sys, math, subprocess, wave
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tools.paths import build_dir, FONT_BOLD
+from tools.mapkit.paths import build_dir, FONT_BOLD
 BD = build_dir("prairieloop"); VID = BD / "video"; VID.mkdir(exist_ok=True)
 BSP = str(BD / "prairieloop.bsp"); VALVE = str(BD / "valve")
 import numpy as np
@@ -88,7 +88,7 @@ def fade(t, t0, hold, fin=0.15, fout=0.6):
 
 def render_chunk(args):
     ci, f0, f1, path = args
-    from tools.render.client import Renderer
+    from tools.mapkit.render import Renderer
     R = Renderer(BSP, asset_root=VALVE)
     door = [mi for mi, kv in R.minfo.items() if kv.get("targetname") == "server_door"][0]
     fans = [(mi, float(kv.get("speed", 0))) for mi, kv in R.minfo.items() if kv["classname"] == "func_rotating"]
@@ -140,7 +140,7 @@ def audio(path, house_boxes, sr=22050):
 if __name__ == "__main__":
     mode = sys.argv[1]; args = sys.argv[2:]
     if mode == "check":
-        from tools.render.client import Renderer
+        from tools.mapkit.render import Renderer
         r = Renderer(BSP, asset_root=VALVE)
         bad = [round(f / FPS, 2) for f in range(int(DUR * FPS)) if r.solid(tuple(cam(f / FPS)[0]))]
         r.close()

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	"halflifemaps/tools/bsp/bspfile"
+	"halflifemaps/tools/bspfile"
 )
 
 // Step is the engine's step height.
