@@ -1,7 +1,7 @@
 # satisfy: the satisfaction scorer and holdout checker
 
 `make quality` (and CI) score maps with this, and the holdout scenarios run on its navigation graph
-(`satisfy map.bsp --holdout scenarios.json|-`, called by `tools/checks/holdout.py`). It is the only scorer in
+(`satisfy map.bsp --holdout scenarios.json|-`, called by `ci holdout`, tools/ci/ci/holdout.go). It is the only scorer in
 the repo: it started as an exact port of `tools/checks/satisfaction.py` (deleted in #24; see git history).
 
 What it measures (score = 100 x the mean of the four):
@@ -14,7 +14,7 @@ What it measures (score = 100 x the mean of the four):
 Standable points come from dropping a player box down a jittered grid of columns, seeded by
 `SATISFACTION_SEED` (a CI secret, so agents can't tune a map to CI's exact sample; 0 locally). Two points are
 linked when the walker (18-unit steps, free drops) can move between them. A PR may not lower a map's score by
-more than 2 points against main with the same seed (`tools/ci/quality.py`).
+more than 2 points against main with the same seed (`ci quality compare`).
 
 ## Golden output
 

@@ -386,7 +386,7 @@ func score(g *graph) (float64, []float64) {
 	return pyRound(100*(total/4), 1), vals
 }
 
-// scenario is one holdout check (see tools/checks/holdout.py for the format).
+// scenario is one holdout check (see tools/ci/ci/holdout.go for the format).
 type scenario struct {
 	From   json.RawMessage `json:"from"`   // "spawns" or [x, y, z_floor]
 	To     json.RawMessage `json:"to"`     // an entity class or [x, y, z_floor]
