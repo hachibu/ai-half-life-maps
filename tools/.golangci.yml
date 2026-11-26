@@ -40,9 +40,26 @@ linters:
     - usestdlibvars
     - wastedassign
     - whitespace
+    # complexity ceiling: limits sit at today's worst function, so nothing may get worse (see settings)
+    - cyclop
+    - funlen
+    - gocognit
+    - nestif
   # prealloc is left out on purpose: a micro-optimisation hint whose suggested capacities are wrong for the
   # variable-length appends this code does (points per brush).
   settings:
+    # Complexity ceiling. Each limit equals today's worst function, so no function may grow past it. Lower
+    # a limit when you split the function that sets it (worst now in brackets), and never raise one.
+    gocognit:
+      min-complexity: 130       # how hard a function is to follow (finalizeLighting 130, BSP.check 89, bspc main 67)
+    cyclop:
+      max-complexity: 57        # branch paths (finalizeLighting 57, BSP.check 52, Parse 36)
+    nestif:
+      min-complexity: 9         # nested ifs; flags 9 and up (worst 8: satisfy's holdout branch)
+    funlen:
+      lines: -1                 # statement count is the meaningful size measure
+      statements: 101           # (BSP.check 101, Parse 96, emitFace 89)
+      ignore-comments: true
     gosec:
       excludes:
         - G304   # file path from a variable: these are command-line tools that read the files they're given
