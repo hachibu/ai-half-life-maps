@@ -1,7 +1,8 @@
 name: map-check
 
-# On every pull request: build only the maps it touches (every map if shared tooling changed),
-# run every check, attach the playable zip, and post before/after screenshots as a PR comment.
+# On every pull request: build only the maps it touches (every map if shared tooling changed), run every
+# check, measure quality (satisfaction + holdout) against main, post before/after screenshots, and apply
+# the visual gate. The pipeline workflow reads this run's result as its `checks` gate.
 on:
   pull_request:
   workflow_dispatch:
@@ -19,10 +20,16 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       maps: ${{ steps.pick.outputs.maps }}
+      direct: ${{ steps.pick.outputs.direct }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Pipeline self-tests
+        run: python -m tools.pipeline.test_gates
       - id: pick
         name: Pick maps to build
         run: |
@@ -30,6 +37,7 @@ jobs:
           if [ "${{ github.event_name }}" != "pull_request" ]; then echo "maps=$ALL" >> "$GITHUB_OUTPUT"; exit 0; fi
           CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
           echo "$CHANGED"
+          echo "direct=$(echo "$CHANGED" | grep -oE '^maps/[^_/][^/]*/' | cut -d/ -f2 | sort -u | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
           if echo "$CHANGED" | grep -qE '^(tools/|Makefile|requirements.txt|\.github/workflows/)'; then
             echo "maps=$ALL" >> "$GITHUB_OUTPUT"
           else
@@ -57,6 +65,11 @@ jobs:
         run: make build MAP=${{ matrix.map }}
       - name: Test ${{ matrix.map }}
         run: make test MAP=${{ matrix.map }}
+      - name: Quality ${{ matrix.map }} (satisfaction + holdout)
+        env:
+          SATISFACTION_SEED: ${{ secrets.SATISFACTION_SEED }}
+          HOLDOUT_KEY: ${{ secrets.HOLDOUT_KEY }}
+        run: python -m tools.ci.quality measure ${{ matrix.map }}
       - name: Previews
         if: always()
         run: make views MAP=${{ matrix.map }} || true
@@ -67,10 +80,29 @@ jobs:
           path: |
             build/${{ matrix.map }}/${{ matrix.map }}.zip
             build/${{ matrix.map }}/previews/
+            build/${{ matrix.map }}/quality.json
           if-no-files-found: ignore
 
-  screenshots:
+  quality:
     needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Quality ratchet against main
+        run: |
+          git fetch -q origin ledger && git show FETCH_HEAD:scores/main.json > baseline.json 2>/dev/null || echo '{}' > baseline.json
+          python -m tools.ci.quality compare artifacts baseline.json
+
+  screenshots:
+    needs: [plan, build]
     # same-repo branches only (forks get a read-only token)
     if: always() && needs.build.result != 'skipped' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
@@ -105,4 +137,6 @@ jobs:
           ID=$(gh api "repos/$GITHUB_REPOSITORY/issues/$N/comments" --paginate \
                --jq '.[] | select(.body | startswith("<!-- map-previews -->")) | .id' | head -1)
           if [ -n "$ID" ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$ID" -F body=@comment.md >/dev/null
-          else gh pr comment "$N" --body-file comment.md; fi
+          else gh api "repos/$GITHUB_REPOSITORY/issues/$N/comments" -F body=@comment.md >/dev/null; fi
+      - name: Visual gate
+        run: python -m tools.ci.previews gate pv "$PREFIX" "${{ needs.plan.outputs.direct }}"

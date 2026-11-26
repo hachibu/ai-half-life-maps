@@ -7,6 +7,10 @@ CI-only helper (see .github/workflows/).  Agents don't run this; they add views 
       PREFIX is "main" for merges and "pr-<number>" for pull requests.
 
   python -m tools.ci.previews comment WORKTREE PR_PREFIX REPO REF RUN_URL > comment.md
+
+  python -m tools.ci.previews gate WORKTREE PR_PREFIX "map1 map2"
+      Visual gate: every map whose own files changed has at least one changed or new view, and no
+      screenshot is blank (one flat colour). Exit 1 with reasons otherwise.
       Markdown comparing WORKTREE/main/<map> (before) with WORKTREE/PR_PREFIX/<map> (after),
       changed and new views first, unchanged ones folded away.
 """
@@ -82,6 +86,26 @@ def comment(worktree, prefix, repo, ref, run_url):
     print("\n".join(out))
 
 
+def gate(worktree, prefix, changed):
+    root = Path(worktree); bad = []
+    for after_dir in sorted(d for d in (root / prefix).iterdir() if d.is_dir()) if (root / prefix).is_dir() else []:
+        for a in after_dir.glob("*.jpg"):
+            if a.stem != "_sheet" and np.asarray(Image.open(a).convert("L"), float).std() < 4:
+                bad.append("%s/%s is blank (flat colour): camera inside a wall or nothing rendered" % (after_dir.name, a.stem))
+    for m in changed.split():
+        after_dir, before_dir = root / prefix / m, root / "main" / m
+        if not after_dir.is_dir():
+            bad.append("%s: no screenshots were produced" % m); continue
+        moved = [a for a in after_dir.glob("*.jpg") if a.stem != "_sheet" and
+                 (not (before_dir / a.name).exists() or diff(a, before_dir / a.name) > CHANGED)]
+        if not moved and before_dir.is_dir():
+            bad.append("%s changed but no screenshot shows a difference: add a view aimed at the change" % m)
+    for b in bad:
+        print("visual gate:", b)
+    print("visual gate: %s" % ("FAIL" if bad else "ok"))
+    sys.exit(1 if bad else 0)
+
+
 if __name__ == "__main__":
     cmd, *args = sys.argv[1:]
-    {"store": store, "comment": comment}[cmd](*args)
+    {"store": store, "comment": comment, "gate": gate}[cmd](*args)
