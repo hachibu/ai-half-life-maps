@@ -3,7 +3,7 @@
 Half-Life 1 deathmatch maps built by an AI agent (Claude) when its human asks. Each map is described in
 Python code and compiled with [SDHLT](https://github.com/seedee/SDHLT), the open-source GoldSrc compiler suite,
 with full visibility and full lighting. No level editor is needed, and every build is checked automatically by
-our Go tools (engine limits, spawns, wiring, walkable routes, playability score, screenshots).
+our Go tools (engine limits, spawns, wiring, walkable routes, screenshots).
 
 ## Maps
 
@@ -38,9 +38,8 @@ make build MAP=prairieloop LIGHT=quick VIS=fast   # a quick draft compile while 
 make test  MAP=prairieloop               # limits, placements, wiring, walk routes (Go)
 make views MAP=prairieloop               # preview images
 make video MAP=prairieloop               # walkthrough video (maps that have one)
-make quality MAP=prairieloop             # playability score (+ holdout scenarios in CI)
 make lint                                # golangci-lint on the Go code
-make golden                              # SDHLT + scorer output must match the committed golden values
+make golden                              # the template map compiled by SDHLT must match its committed SHA-256
 make readme V=<previews commit>          # refresh the README screenshot sections (and their image version)
 make all                                 # every map
 ```
@@ -60,9 +59,9 @@ one map without conflicts.
 
 ```
 tools/bsp/          the pinned SDHLT commit (sdhlt.rev), BSP reader and bspinfo (Go)
-tools/checks/      map checks, route walker and playability scorer (Go)
+tools/checks/      map checks and route walker (Go)
 tools/render/      preview and video renderer (Go)
-tools/ci/ci/       CI helpers: packaging, quality ratchet, screenshots, README sections (Go)
+tools/ci/ci/       CI helpers: packaging, screenshots, README sections (Go)
 tools/mapkit.py    zone-based map assembly; tools/assets/: texture, sky and sprite generators (Python)
 maps/              one folder per map (+ _template)
 go.mod             one Go module for the repo

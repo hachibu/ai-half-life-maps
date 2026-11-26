@@ -28,8 +28,8 @@ or gates to satisfy, only the checks in CI.
 7. **Learn.** If a check went red on your PR or something broke, add a lesson in the same PR
    (`docs/lessons/README.md`). Update an existing lesson rather than duplicating it.
 
-Never delete or weaken a check to get green: the quality ratchet and the holdout scenarios exist to catch
-exactly that, and it breaks trust in the whole system.
+Never delete or weaken a check to get green: fix the map. A check that's wrong gets fixed in its own PR, with
+the reason.
 
 ## Avoiding merge conflicts (several sessions work here at once)
 
@@ -54,7 +54,7 @@ The repo is laid out so that two agent sessions almost never edit the same file:
 
 ```
 tools/bsp/sdhlt.rev         the SDHLT commit `make build` compiles maps with (hlcsg/hlbsp/hlvis/hlrad); output pinned by `make golden`
-tools/bsp/bspfile/           Go BSP reader shared by the checks and the scorer (limits, consistency, hulls)
+tools/bsp/bspfile/           Go BSP reader shared by the checks and the renderer (limits, consistency, hulls)
 tools/checks/mapcheck/      `make test`: structure (engine limits), placements, wiring, walk routes (Go)
 tools/checks/walker/        the route walker (Go): 18-unit steps, free drops; walk.py hands it each map's ROUTES
 tools/render/renderer/      the preview + video renderer (Go; views render concurrently)
@@ -62,11 +62,8 @@ tools/render/render/        `make views` and the frame server videos use (client
 tools/bsp/bspinfo/          `bspinfo lightbudget MAP.bsp`: light samples per texture
 tools/assets/library.py     texture helpers, base textures, WAD writer
 tools/assets/skyfire.py     skybox faces (TGA) + fire sprite
-tools/ci/ci/                `ci`, the CI helpers (Go): package (valve/ layout, .res, zip), quality (satisfaction +
-                            holdout, no-regression ratchet), holdout, previews (screenshots, PR comment, visual
-                            gate), readme (generated README sections)
-tools/checks/satisfy/       satisfaction scorer (Go): 0-100 playability score from sampled movement; also runs holdout
-holdout/scenarios.enc       human-written encrypted scenarios, run only in CI (`ci holdout`, evaluated by satisfy)
+tools/ci/ci/                `ci`, the CI helpers (Go): package (valve/ layout, .res, zip), previews (screenshots,
+                            PR comment, visual gate), readme (generated README sections)
 docs/lessons/               the knowledge base: one lesson per file; read the ones tagged for your task
 tools/mapkit.py             zone-based map assembly (conflict-free multi-agent maps)
 maps/<name>/build.py        generates build/<name>/<name>.map + .wad + valve/ assets (sky, sprites, sounds)
@@ -75,7 +72,7 @@ maps/<name>/assets.py       that map's own textures/sprites/sounds (when it has 
 maps/<name>/tests/routes.py walk routes that must stay passable
 maps/<name>/tests/views.py  preview camera shots
 maps/<name>/map.toml        name, owner, sky, description
-go.mod                      one Go module for the repo (checks, scorer, renderer, CI helpers); lint config: tools/.golangci.yml
+go.mod                      one Go module for the repo (checks, renderer, CI helpers); lint config: tools/.golangci.yml
 build/                      everything generated (git-ignored); build/bin/ holds the Go binaries
 ```
 
@@ -87,9 +84,8 @@ make build MAP=<name>                  # generate, compile (SDHLT), package -> b
 make test  MAP=<name>                  # structure + limits, placements, wiring, routes
 make views MAP=<name>                  # preview PNGs in build/<name>/previews/
 make video MAP=<name>                  # walkthrough mp4 + Discord-size copy (if the map has video/walkthrough.py)
-make quality MAP=<name>                # satisfaction score (+ holdout pass rate in CI)
 make lint                              # golangci-lint (gofmt, go vet, staticcheck, errcheck, unused, ...)
-make golden                            # SDHLT + scorer output must match the committed golden values
+make golden                            # the template map compiled by SDHLT must match its committed SHA-256
 make golden-update                     # only when you changed that output on purpose: commit it, say why in the PR
 make all                               # build + test every map
 ```
@@ -108,9 +104,9 @@ Each of these cost real time once; the lesson files have the details.
   update `FETCH_HEAD`: rebase onto `FETCH_HEAD`, and force-push with an explicit lease
   (`--force-with-lease=<branch>:<sha you expect>`).
 - **A refactor leaves `make golden` unchanged; an output change is deliberate.** Maps compile with SDHLT at a
-  pinned commit (tools/bsp/sdhlt.rev) and the scorer is ours, so both outputs are pinned. Floating-point
+  pinned commit (tools/bsp/sdhlt.rev), and the template map's compiled bytes are pinned. Floating-point
   operation order matters (a reordered sum or a fused multiply-add changes last bits). If the output changes on
-  purpose (a new SDHLT commit, a scorer change), run `make golden-update`, commit it, and say in the PR why and
+  purpose (a new SDHLT commit, a change to the template), run `make golden-update`, commit it, and say in the PR why and
   how you checked the maps.
 - **PRs and releases compile what players get: full VIS and full lighting.** `make build` runs both;
   `LIGHT=quick VIS=fast` is a draft mode for iterating locally. Full VIS stays fast only because the maps put
@@ -124,7 +120,7 @@ Each of these cost real time once; the lesson files have the details.
 - **Merges trigger releases in merge order.** Two PRs merging close together release in the order they
   landed, not the order they were opened; check which commit a release came from before calling it wrong.
 - **Read the failing check's own message first.** CI's checks name what's wrong (a route, a limit, a blank
-  screenshot, a quality drop); they have been right every time so far.
+  screenshot); they have been right every time so far.
 
 ## Hard rules (the checks enforce most of these)
 

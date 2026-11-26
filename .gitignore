@@ -3,5 +3,4 @@ __pycache__/
 *.pyc
 *.part.mp4
 .DS_Store
-holdout/scenarios.json
 next.json

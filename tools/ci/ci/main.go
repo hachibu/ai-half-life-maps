@@ -1,10 +1,6 @@
 // ci: the CI helpers, in one command (run from the repo root; `make bspc` builds build/bin/ci).
 //
 //	ci package MAP                                  build/MAP/valve + .res + README -> build/MAP/MAP.zip
-//	ci quality measure MAP                          satisfaction + holdout -> build/MAP/quality.json
-//	ci quality compare ARTIFACTS BASELINE.json      PR: exit 1 if a map's quality dropped below main's
-//	ci quality baseline ARTIFACTS OUT.json          main: write the new baseline
-//	ci holdout MAP BSP [--json OUT]                 encrypted holdout scenarios (needs HOLDOUT_KEY)
 //	ci previews store ARTIFACTS WORKTREE PREFIX     PNG previews -> WORKTREE/PREFIX/<map>/*.jpg
 //	ci previews comment WORKTREE PREFIX REPO REF RUN_URL    the PR's before/after markdown, to stdout
 //	ci previews gate WORKTREE PREFIX "map1 map2"    visual gate: exit 1 with reasons
@@ -16,8 +12,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 )
 
 var (
@@ -47,10 +41,6 @@ func run(args []string) (int, error) {
 	switch {
 	case args[0] == "package" && len(args) == 2:
 		return 0, cmdPackage(root, args[1])
-	case args[0] == "quality" && len(args) >= 2:
-		return cmdQuality(root, args[1:])
-	case args[0] == "holdout" && len(args) >= 3:
-		return 0, cmdHoldout(root, args[1:])
 	case args[0] == "previews" && len(args) >= 2:
 		return cmdPreviews(args[1:])
 	case args[0] == "readme":
@@ -75,15 +65,6 @@ func repoRoot() (string, error) {
 		}
 		d = up
 	}
-}
-
-// pyFloat formats a float the way Python's str() does for ordinary values (100.0, 87.5).
-func pyFloat(f float64) string {
-	s := strconv.FormatFloat(f, 'f', -1, 64)
-	if !strings.ContainsAny(s, ".eEn") {
-		s += ".0"
-	}
-	return s
 }
 
 // readmeArgs parses `ci readme [--check] [--version V]`.
